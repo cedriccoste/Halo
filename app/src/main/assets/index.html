@@ -222,7 +222,7 @@ const CROPS = [
   { k: '16:9', n: '16:9' }, { k: '1:1', n: 'Carré' }, { k: '5:4', n: '5:4' },
 ];
 
-const newSettings = () => ({ auto: false, adj: Object.fromEntries(ADJ_KEYS.map(k => [k, 0])), filter: 'none', filterAmt: 100 });
+const newSettings = () => ({ auto: 0, adj: Object.fromEntries(ADJ_KEYS.map(k => [k, 0])), filter: 'none', filterAmt: 100 });
 const newGeo = () => ({ rot: 0, straighten: 0, vertical: 0, horizontal: 0, crop: 'orig' });
 const clone = o => JSON.parse(JSON.stringify(o));
 const isDefaultSettings = s => !s || (!s.auto && s.filter === 'none' && ADJ_KEYS.every(k => !s.adj[k]));
@@ -279,14 +279,22 @@ function analyzeAuto(bmp) {
 }
 
 /* ---------- Réglages effectifs (auto + manuel + filtre) ---------- */
+// Auto : curseur 0–100 (50 = normal). Il pilote tous les autres curseurs ;
+// chaque curseur garde en plus le décalage que l'utilisateur lui a donné.
+const autoAmt = s => (s && s.auto === true) ? 50 : (+(s && s.auto) || 0);
+function autoPart(p, s, k) {
+  const a = autoAmt(s); if (!a) return 0;
+  if (!p.auto && p.thumb) p.auto = analyzeAuto(p.thumb);
+  return p.auto ? Math.round(p.auto[k] * a / 50) : 0;
+}
+const shownVal = (p, s, k) => clamp(s.adj[k] + autoPart(p, s, k), MINV(k), 100);
 function effective(p, opts = {}) {
   const s = p.settings || newSettings();
   const e = { mono: 0 };
-  const auto = s.auto ? (p.auto || (p.thumb ? (p.auto = analyzeAuto(p.thumb)) : null)) : null;
   const f = FILTERS.find(f => f.k === (opts.filter ?? s.filter)) || FILTERS[0];
   const amt = (opts.filterAmt ?? s.filterAmt) / 100;
   for (const k of ADJ_KEYS) {
-    let v = s.adj[k] + (auto ? auto[k] : 0) + (f.d[k] || 0) * amt;
+    const v = shownVal(p, s, k) + (f.d[k] || 0) * amt;
     e[k] = clamp(v, MINV(k), 100);
   }
   e.mono = (f.d.mono || 0) * amt;
@@ -668,33 +676,42 @@ function buildTools() {
     b.onclick = () => {
       const p = curP(); if (!p) return;
       if (t.k === 'auto') {
-        const s = ensureSettings(p); s.auto = !s.auto;
-        if (s.auto && p.thumb) p.auto = analyzeAuto(p.thumb);
-        toast(s.auto ? 'Auto activé — calculé pour chaque photo' : 'Auto désactivé', 1600);
+        const s = ensureSettings(p);
+        if (S.tool !== 'auto') { S.tool = 'auto'; if (!autoAmt(s)) s.auto = 50; }
+        else s.auto = autoAmt(s) ? 0 : 50;          // 2e appui = activer / désactiver
         syncControls(); changed(); return;
       }
-      if (S.tool === t.k) { const s = ensureSettings(p); s.adj[t.k] = s.adj[t.k] ? 0 : s.adj[t.k]; }
       S.tool = t.k; syncControls(); changed();
     };
     box.appendChild(b);
   }
 }
+function fmtV(v) { return v > 0 ? '+' + v : String(v); }
 function syncControls() {
   const p = curP(); const s = (p && p.settings) || newSettings();
-  const e = p ? effective(p) : null;
   for (const b of $('tools').children) {
     const k = b.dataset.k;
     b.classList.toggle('on', k === S.tool);
-    if (k === 'auto') { b.classList.toggle('active', !!s.auto); continue; }
-    const v = s.adj[k]; const pc = Math.abs(v) / 100 * 100;
-    b.querySelector('.ring').style.setProperty('--p', pc + '%');
+    if (k === 'auto') {
+      b.classList.toggle('active', !!autoAmt(s));
+      b.querySelector('.ring').style.setProperty('--p', autoAmt(s) + '%');
+      continue;
+    }
+    const v = p ? shownVal(p, s, k) : 0;
+    b.querySelector('.ring').style.setProperty('--p', Math.abs(v) + '%');
   }
   const t = TOOLS.find(t => t.k === S.tool);
-  const sl = $('slider'); sl.min = t.min ?? -100; sl.max = 100; sl.value = s.adj[S.tool];
-  $('adjName').textContent = t.n;
-  const v = s.adj[S.tool];
-  const av = (s.auto && p && p.auto) ? p.auto[S.tool] : 0;
-  $('adjVal').textContent = (v > 0 ? '+' + v : String(v)) + (av ? `  · auto ${av > 0 ? '+' : ''}${av}` : '');
+  const sl = $('slider');
+  if (S.tool === 'auto') {
+    sl.min = 0; sl.max = 100; sl.value = autoAmt(s);
+    $('adjName').textContent = 'Auto';
+    $('adjVal').textContent = autoAmt(s) ? String(autoAmt(s)) : 'désactivé';
+  } else {
+    const v = p ? shownVal(p, s, S.tool) : 0;
+    sl.min = t.min ?? -100; sl.max = 100; sl.value = v;
+    $('adjName').textContent = t.n;
+    $('adjVal').textContent = fmtV(v);
+  }
   // filtres
   $('fltAmt').value = s.filterAmt; $('fltVal').textContent = s.filter === 'none' ? '' : s.filterAmt;
   for (const el of $('filters').children) el.classList.toggle('on', el.dataset.k === s.filter);
@@ -705,13 +722,22 @@ function syncControls() {
 }
 $('slider').oninput = e => {
   const p = curP(); if (!p) return; const s = ensureSettings(p);
-  s.adj[S.tool] = +e.target.value;
-  const v = s.adj[S.tool];
-  $('adjVal').textContent = v > 0 ? '+' + v : String(v);
-  const b = $('tools').querySelector(`[data-k="${S.tool}"] .ring`); if (b) b.style.setProperty('--p', Math.abs(v) + '%');
+  const v = +e.target.value;
+  if (S.tool === 'auto') {
+    s.auto = v;                                   // fait bouger tous les autres curseurs
+    syncControls();
+  } else {
+    s.adj[S.tool] = v - autoPart(p, s, S.tool);   // on garde l'écart par rapport à l'Auto
+    $('adjVal').textContent = fmtV(v);
+    const b = $('tools').querySelector(`[data-k="${S.tool}"] .ring`); if (b) b.style.setProperty('--p', Math.abs(v) + '%');
+  }
   changed();
 };
-$('slider').ondblclick = () => { const p = curP(); if (!p) return; ensureSettings(p).adj[S.tool] = 0; syncControls(); changed(); };
+$('slider').ondblclick = () => {
+  const p = curP(); if (!p) return; const s = ensureSettings(p);
+  if (S.tool === 'auto') s.auto = 50; else s.adj[S.tool] = 0;   // retour à la valeur Auto
+  syncControls(); changed();
+};
 
 /* --- filtres --- */
 function buildFilters() {
@@ -770,7 +796,7 @@ $('btnApplyAll').onclick = () => {
   const s = clone(p.settings || newSettings());
   let n = 0;
   for (const q of S.batch) { if (q === p) continue; q.settings = clone(s); n++; drawStripThumb(q); }
-  toast(`Réglage appliqué aux ${n} autres photos` + (s.auto ? ' (Auto recalculé pour chacune)' : ''));
+  toast(`Réglage appliqué aux ${n} autres photos` + (autoAmt(s) ? ' (Auto recalculé pour chacune)' : ''));
 };
 $('btnCopy').onclick = () => { const p = curP(); if (!p) return; S.clip = clone(p.settings || newSettings()); toast('Réglage copié'); };
 $('btnPaste').onclick = () => { const p = curP(); if (!p) return; if (!S.clip) return toast("Rien à coller : appuie d'abord sur Copier"); p.settings = clone(S.clip); syncControls(); changed(); toast('Réglage collé'); };
@@ -819,7 +845,7 @@ async function renderFull(p) {
   const blob = await sourceBlob(p);
   const maxSide = Math.min(RE.maxTex, 8192);
   const bmp = await decode(blob, maxSide);
-  if (p.settings?.auto && !p.auto) p.auto = analyzeAuto(p.thumb || bmp);
+  if (autoAmt(p.settings) && !p.auto) p.auto = analyzeAuto(p.thumb || bmp);
   RE.setImage(bmp);
   const G = geomFor(bmp.width, bmp.height, p.geo);
   RE.render(effective(p), G, G.outW, G.outH);
