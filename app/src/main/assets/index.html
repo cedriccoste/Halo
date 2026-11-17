@@ -20,6 +20,20 @@ button{font:inherit;color:inherit;background:none;border:0;padding:0;cursor:poin
 .btn.primary{background:var(--acc);color:#1a1300;font-weight:650}
 .btn.ghost{background:transparent;color:var(--txt);padding-left:6px}
 .btn:disabled{opacity:.4}
+#kinds{display:flex;align-self:flex-start;gap:2px;margin:0 14px 6px;padding:4px;background:var(--s1);border-radius:999px;flex:none}
+#kinds button{font-size:14px;color:var(--mut);padding:7px 20px;border-radius:999px;font-weight:500}
+#kinds button.on{color:var(--txt);background:var(--s2);font-weight:600}
+#vjob{display:block;margin:2px 12px 8px;padding:11px 16px;border-radius:14px;background:var(--s1);border:1px solid rgba(255,207,107,.3);color:var(--acc);font-weight:550;text-align:left;font-variant-numeric:tabular-nums;flex:none}
+.cell .dur{position:absolute;right:6px;bottom:6px;background:rgba(0,0,0,.6);font-size:11px;padding:2px 7px;border-radius:999px;font-variant-numeric:tabular-nums}
+#vid{position:absolute;left:0;top:0;width:2px;height:2px;opacity:0;pointer-events:none}
+#vbar{flex:1;min-width:0;display:flex;align-items:center;gap:8px}
+#vbar .ico{width:38px;height:38px;padding:0;display:grid;place-items:center;border-radius:50%;flex:none;background:var(--acc);color:#1a1300}
+#vbar .ico svg{width:20px;height:20px;fill:currentColor}
+#vbar .rng{flex:1;min-width:60px;width:auto;margin:0}
+#vTime{font-size:12px;color:var(--mut);font-variant-numeric:tabular-nums;flex:none}
+.isvid [data-k=definition],.isvid [data-k=noise],.isvid #btnZone,.isvid #tabs [data-tab=pCrop]{display:none}
+#busyBg{margin-top:10px}
+#busyTxt{font-size:17px;font-weight:600;font-variant-numeric:tabular-nums}
 /* galerie */
 #gallery>.bar{background:rgba(0,0,0,.72);backdrop-filter:blur(18px);-webkit-backdrop-filter:blur(18px)}
 #gScroll{flex:1;overflow:auto;padding:0 12px 110px}
@@ -149,6 +163,8 @@ button{font:inherit;color:inherit;background:none;border:0;padding:0;cursor:poin
 
 <section id="gallery" class="view">
   <header class="bar"><h1><i class="halo"></i>Halo<span id="ver"></span></h1><button class="btn" id="btnBackups" hidden>Restaurer</button></header>
+  <div id="kinds"><button data-kind="photo" class="on">Photos</button><button data-kind="video">Vidéos</button></div>
+  <button id="vjob" hidden></button>
   <div id="upd" hidden><div><b id="updTitle"></b><small id="updNotes"></small></div><button class="btn primary" id="btnUpd">Installer</button></div>
   <div id="gScroll">
     <div id="permBox" class="empty" hidden>
@@ -176,12 +192,17 @@ button{font:inherit;color:inherit;background:none;border:0;padding:0;cursor:poin
     <span class="sp" id="counter"></span>
     <button class="btn primary" id="btnSave">Enregistrer</button>
   </header>
-  <div id="stage"><canvas id="view"></canvas><div id="badge" hidden>Original</div><div id="brushRing" hidden></div></div>
+  <div id="stage"><canvas id="view"></canvas><div id="badge" hidden>Original</div><div id="brushRing" hidden></div><video id="vid" playsinline preload="auto"></video></div>
   <div id="row">
     <div id="strip"></div>
     <button class="btn acc" id="btnApplyAll">Appliquer à toutes</button>
     <button class="btn acc" id="btnCopy1" hidden>Copier le réglage</button>
     <span id="rowSp" hidden style="flex:1"></span>
+    <div id="vbar" hidden>
+      <button class="chip ico" id="vPlay" aria-label="Lecture / pause"><svg viewBox="0 0 24 24"><path id="vPlayIc" d="M8 5.5v13l11-6.5z"/></svg></button>
+      <input type="range" class="rng" id="vScrub" min="0" max="1000" step="1" value="0" aria-label="Position dans la vidéo">
+      <span id="vTime">0:00</span>
+    </div>
     <button class="btn" id="btnMore2" aria-label="Plus d'actions">•••</button>
   </div>
   <div id="actions" hidden>
@@ -222,7 +243,7 @@ button{font:inherit;color:inherit;background:none;border:0;padding:0;cursor:poin
 </section>
 
 <div id="sheetWrap" hidden><div id="sheet"></div></div>
-<div id="busy" hidden><div id="busyTxt">Enregistrement…</div><div class="bar2"><i id="busyBar"></i></div><small id="busySub" style="color:#8e8e93"></small></div>
+<div id="busy" hidden><div id="busyTxt">Enregistrement…</div><div class="bar2"><i id="busyBar"></i></div><small id="busySub" style="color:#8e8e93"></small><button class="btn" id="busyBg" hidden>Continuer en arrière-plan</button></div>
 <div id="toast"></div>
 <canvas id="glThumb" width="64" height="64" hidden></canvas>
 <canvas id="glExport" width="64" height="64" hidden></canvas>
@@ -391,6 +412,7 @@ function effective(p, opts = {}) {
     e[k] = clamp(v, MINV(k), 100);
   }
   e.mono = (f.d.mono || 0) * amt;
+  if (p.kind === 'video') { e.definition = 0; e.noise = 0; }   // non disponibles en vidéo
   return e;
 }
 
@@ -566,7 +588,14 @@ class Renderer {
     gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, gl.LINEAR);
     gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_S, gl.CLAMP_TO_EDGE);
     gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_T, gl.CLAMP_TO_EDGE);
-    this.img = img; this.w = img.width; this.h = img.height;
+    this.img = img; this.w = img.videoWidth || img.width; this.h = img.videoHeight || img.height;
+  }
+  // vidéo : recharge l'image courante du lecteur
+  refresh() {
+    const gl = this.gl;
+    gl.activeTexture(gl.TEXTURE0); gl.bindTexture(gl.TEXTURE_2D, this.tex);
+    gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA, gl.RGBA, gl.UNSIGNED_BYTE, this.img);
+    gl.generateMipmap(gl.TEXTURE_2D);
   }
   release() { if (this.tex) this.gl.deleteTexture(this.tex); this.tex = null; this.img = null; }
   render(e, G, outW, outH, original = false, loc = null) {
@@ -608,6 +637,7 @@ const S = {
   tool: 'exposure',
   tab: 'pAdjust',
   clip: LS.get('clip', null), selMode: false,
+  kind: 'photo', vorder: [], voffset: 0, vhasMore: false, vloaded: false,
   offset: 0, pageSize: 240, hasMore: false,
 };
 let RV, RT, RE;            // renderers : vue, vignettes, export
@@ -616,7 +646,7 @@ let RV, RT, RE;            // renderers : vue, vignettes, export
 let toastT;
 function toast(msg, ms = 2600) { const t = $('toast'); t.textContent = msg; t.classList.add('show'); clearTimeout(toastT); toastT = setTimeout(() => t.classList.remove('show'), ms); }
 function busy(on, txt, frac, sub) {
-  $('busy').hidden = !on; if (!on) return;
+  $('busy').hidden = !on; $('busyBg').hidden = true; if (!on) return;
   if (txt != null) $('busyTxt').textContent = txt;
   $('busyBar').style.width = Math.round((frac || 0) * 100) + '%';
   $('busySub').textContent = sub || '';
@@ -633,8 +663,29 @@ async function decode(blob, maxSide) {
 }
 async function fetchBlob(url) { const r = await fetch(url); if (!r.ok) throw new Error('HTTP ' + r.status); return r.blob(); }
 async function sourceBlob(p) { if (p.file) return p.file; return fetchBlob('/media/' + (p.useBackup ? 'orig' : 'full') + '/' + p.id + '?v=' + (p.v || 0)); }
+const isVid = p => !!p && p.kind === 'video';
+const curOrder = () => S.kind === 'video' ? S.vorder : S.order;
+const fmtDur = ms => { const t = Math.round(ms / 1000); return Math.floor(t / 60) + ':' + String(t % 60).padStart(2, '0'); };
+const videoUrl = p => p.file ? (p._url ||= URL.createObjectURL(p.file)) : '/media/video/' + (p.useBackup ? 'orig' : 'full') + '/' + p.id + '?v=' + (p.v || 0);
+const once = (el, ok, ms = 10000) => new Promise((res, rej) => {
+  const t = setTimeout(() => rej(new Error('délai dépassé')), ms);
+  el.addEventListener(ok, () => { clearTimeout(t); res(); }, { once: true });
+  el.addEventListener('error', () => { clearTimeout(t); rej(new Error('lecture impossible')); }, { once: true });
+});
+// une image de la vidéo (pour les vignettes et l'analyse Auto)
+async function grabFrame(url) {
+  const v = document.createElement('video'); v.muted = true; v.playsInline = true; v.preload = 'auto'; v.src = url;
+  await once(v, 'loadeddata');
+  v.currentTime = Math.min(0.5, (v.duration || 1) / 2); await once(v, 'seeked');
+  const k = Math.min(1, 480 / Math.max(v.videoWidth, v.videoHeight)), c = document.createElement('canvas');
+  c.width = Math.max(1, Math.round(v.videoWidth * k)); c.height = Math.max(1, Math.round(v.videoHeight * k));
+  c.getContext('2d').drawImage(v, 0, 0, c.width, c.height);
+  v.removeAttribute('src'); v.load();
+  return createImageBitmap(c);
+}
 async function ensureThumb(p) {
   if (p.thumb) return p.thumb;
+  if (isVid(p) && (p.file || p.useBackup)) { p.thumb = await grabFrame(videoUrl(p)); return p.thumb; }
   const blob = p.file ? p.file : await fetchBlob('/media/' + (p.useBackup ? 'orig' : 'thumb') + '/' + p.id + '?v=' + (p.v || 0));
   p.thumb = await decode(blob, 480);
   return p.thumb;
@@ -650,7 +701,7 @@ function fmtDay(ts) {
 function renderGallery() {
   const box = $('days'); box.innerHTML = '';
   const groups = new Map();
-  for (const id of S.order) { const p = S.all.get(id); const k = new Date(p.date).toDateString(); if (!groups.has(k)) groups.set(k, []); groups.get(k).push(p); }
+  for (const id of curOrder()) { const p = S.all.get(id); const k = new Date(p.date).toDateString(); if (!groups.has(k)) groups.set(k, []); groups.get(k).push(p); }
   for (const [, list] of groups) {
     const h = document.createElement('div'); h.className = 'day';
     const allSel = list.every(p => S.selected.has(p.id));
@@ -661,6 +712,7 @@ function renderGallery() {
       const c = document.createElement('div'); c.className = 'cell' + (S.selected.has(p.id) ? ' sel' : '');
       if (p.file) { const cv = document.createElement('canvas'); c.appendChild(cv); ensureThumb(p).then(b => { cv.width = b.width; cv.height = b.height; cv.getContext('2d').drawImage(b, 0, 0); }); }
       else { const im = document.createElement('img'); im.loading = 'lazy'; im.decoding = 'async'; im.src = '/media/thumb/' + p.id + '?v=' + (p.v || 0); c.appendChild(im); }
+      if (isVid(p) && p.duration) c.insertAdjacentHTML('beforeend', '<div class="dur">' + fmtDur(p.duration) + '</div>');
       c.insertAdjacentHTML('beforeend', '<div class="chk"></div>' + (p.saved ? '<div class="done" title="Déjà retouchée"><svg viewBox="0 0 24 24"><path d="M4.5 19.5 14 10"/><path d="M17 3.5v5M14.5 6h5M19.5 12.5v3M18 14h3"/></svg></div>' : ''));
       // appui court : ouvrir la photo — appui long : sélectionner (puis appui court = cocher / décocher)
       let lpT = null, lpDone = false, sx = 0, sy = 0;
@@ -675,14 +727,16 @@ function renderGallery() {
     }
     box.appendChild(h); box.appendChild(g);
   }
-  $('moreBox').hidden = !S.hasMore;
+  $('moreBox').hidden = !(S.kind === 'video' ? S.vhasMore : S.hasMore);
   updSelBar();
 }
 function updSelBar() {
   $('days').classList.toggle('selmode', !!S.selMode);
   const n = S.selected.size;
   $('selBar').hidden = !S.selMode || n === 0;
-  $('selCount').textContent = n + (n > 1 ? ' photos' : ' photo');
+  $('btnEdit').hidden = S.kind === 'video';
+  const w = S.kind === 'video' ? ' vidéo' : ' photo';
+  $('selCount').textContent = n + w + (n > 1 ? 's' : '');
 }
 /* ---------- Mémoire des photos déjà retouchées (conservée entre deux ouvertures) ---------- */
 const MEM = LS.get('done', {});
@@ -721,6 +775,23 @@ function loadAndroidPage() {
   S.offset += list.length; S.hasMore = list.length === S.pageSize;
   renderGallery();
 }
+function loadVideoPage() {
+  let list = [];
+  try { list = JSON.parse(A.listVideos(S.voffset, S.pageSize)); } catch (e) { toast('Erreur de lecture des vidéos'); }
+  for (const it of list) {
+    if (!S.all.has(it.id)) { const v = { id: it.id, kind: 'video', name: it.name, date: it.date, duration: it.duration, settings: null, geo: newGeo() }; memApply(v); S.all.set(it.id, v); S.vorder.push(it.id); }
+  }
+  S.voffset += list.length; S.vhasMore = list.length === S.pageSize; S.vloaded = true;
+  renderGallery();
+}
+for (const b of $('kinds').children) b.onclick = () => {
+  if (S.kind === b.dataset.kind) return;
+  S.kind = b.dataset.kind; S.selected.clear(); S.selMode = false;
+  for (const x of $('kinds').children) x.classList.toggle('on', x === b);
+  if (!A) { $('fileInput').accept = S.kind + '/*'; $('webPick').querySelector('p').textContent = S.kind === 'video' ? 'Choisis une vidéo.' : "Choisis les photos d'un même bien."; }
+  if (A && S.kind === 'video' && !S.vloaded && A.hasPermission()) loadVideoPage(); else renderGallery();
+  $('gScroll').scrollTop = 0;
+};
 function initGallery() {
   if (A) {
     $('btnBackups').hidden = false;
@@ -732,34 +803,43 @@ function initGallery() {
 }
 window.onPermissions = granted => { if (granted) { $('permBox').hidden = true; loadAndroidPage(); } else toast("Sans l'accès aux photos, l'appli ne peut rien faire."); };
 $('btnPerm').onclick = () => A.requestPermission();
-$('btnMore').onclick = () => loadAndroidPage();
+$('btnMore').onclick = () => S.kind === 'video' ? loadVideoPage() : loadAndroidPage();
 $('btnClearSel').onclick = () => { S.selected.clear(); S.selMode = false; renderGallery(); };
 $('fileInput').onchange = e => {
   const files = [...e.target.files]; if (!files.length) return;
-  for (const f of files) { const id = 'f' + Math.random().toString(36).slice(2); S.all.set(id, { id, name: f.name, date: f.lastModified, file: f, settings: null, geo: newGeo() }); S.order.push(id); S.selected.add(id); }
-  S.selMode = true; e.target.value = ''; renderGallery();
+  const vk = S.kind === 'video';
+  for (const f of files) { const id = 'f' + Math.random().toString(36).slice(2); S.all.set(id, { id, kind: vk ? 'video' : 'photo', name: f.name, date: f.lastModified, file: f, settings: null, geo: newGeo() }); curOrder().push(id); if (!vk) S.selected.add(id); }
+  S.selMode = !vk; e.target.value = ''; renderGallery();
 };
 
 /* ---------- Éditeur ---------- */
 const curP = () => S.batch[S.cur];
-const selList = () => S.order.filter(id => S.selected.has(id)).map(id => S.all.get(id));
+const selList = () => curOrder().filter(id => S.selected.has(id)).map(id => S.all.get(id));
 const sig = p => JSON.stringify([p.settings, p.geo, p.local, p.mask && [p.mask.ver, p.mask.inv]]);
 const unsaved = p => isEdited(p) && sig(p) !== p.savedSig;
 async function openEditor(list) {
   S.batch = list || selList();
   if (!S.batch.length) return;
+  const vid = isVid(S.batch[0]);
+  if (vid) {                                      // une vidéo à la fois, sans zone ni recadrage
+    S.batch = [S.batch[0]]; S.zone = false;
+    if (S.tool === 'definition' || S.tool === 'noise') S.tool = 'exposure';
+    if (S.tab === 'pCrop') $('tabs').querySelector('[data-tab=pAdjust]').click();
+  }
+  $('editor').classList.toggle('isvid', vid);
   const one = S.batch.length === 1;
-  $('strip').hidden = one; $('btnApplyAll').hidden = one; $('btnCopy1').hidden = !one; $('rowSp').hidden = !one;
+  $('strip').hidden = one; $('btnApplyAll').hidden = one; $('btnCopy1').hidden = !one || vid; $('rowSp').hidden = !one || vid; $('vbar').hidden = !vid;
   for (const p of S.batch) if (p.saved && p.savedSig === undefined) p.savedSig = sig(p);
   $('gallery').hidden = true; $('editor').hidden = false;
   buildStrip();
-  busy(true, 'Préparation des photos…', 0);
-  for (let i = 0; i < S.batch.length; i++) { try { await ensureThumb(S.batch[i]); } catch (e) {} busy(true, 'Préparation des photos…', (i + 1) / S.batch.length); drawStripThumb(S.batch[i]); }
+  busy(true, 'Préparation…', 0);
+  for (let i = 0; i < S.batch.length; i++) { try { await ensureThumb(S.batch[i]); } catch (e) {} busy(true, 'Préparation…', (i + 1) / S.batch.length); drawStripThumb(S.batch[i]); }
   busy(false);
   await selectPhoto(0);
 }
 function closeEditor() {
   $('editor').hidden = true; $('gallery').hidden = false;
+  try { VID.pause(); VID.removeAttribute('src'); VID.load(); } catch (e) {}
   if (RV) RV.release();
   for (const p of S.batch) { if (p.preview) { p.preview.close(); p.preview = null; } }
   renderGallery();
@@ -800,6 +880,15 @@ async function selectPhoto(i) {
   syncControls();
   // affichage immédiat avec la vignette, puis version détaillée
   if (p.thumb) { RV.setImage(p.thumb); drawView(); }
+  if (isVid(p)) {                                 // vidéo : le lecteur devient la source de l'aperçu
+    try {
+      VID.loop = true; VID.src = videoUrl(p); await once(VID, 'loadeddata', 15000);
+      VID.currentTime = 0.05; await once(VID, 'seeked', 5000).catch(() => {});
+      if (curP() === p) { RV.setImage(VID); drawView(); vUi(); }
+    } catch (e) { toast("Impossible de lire cette vidéo dans l'aperçu : " + e.message, 4000); }
+    if (S.tab === 'pFilters') drawFilterTiles();
+    return;
+  }
   if (!p.preview) {
     try {
       const want = Math.min(2048, Math.round(Math.max(innerWidth, innerHeight) * (devicePixelRatio || 1)));
@@ -811,12 +900,29 @@ async function selectPhoto(i) {
   if (curP() === p && p.preview) { RV.setImage(p.preview); drawView(); }
   if (S.tab === 'pFilters') drawFilterTiles();
 }
+/* --- lecteur vidéo de l'aperçu --- */
+const VID = $('vid');
+function vUi() {
+  const d = VID.duration || 0, t = VID.currentTime || 0;
+  if (!vScrubbing) $('vScrub').value = d ? Math.round(t / d * 1000) : 0;
+  $('vTime').textContent = fmtDur(t * 1000) + ' / ' + fmtDur(d * 1000);
+  $('vPlayIc').setAttribute('d', VID.paused ? 'M8 5.5v13l11-6.5z' : 'M7 5.5h3.5v13H7zM13.5 5.5H17v13h-3.5z');
+}
+let vScrubbing = false;
+function vLoop() { if ($('editor').hidden || RV.img !== VID) return; drawView(); vUi(); if (!VID.paused) requestAnimationFrame(vLoop); }
+VID.addEventListener('play', vLoop); VID.addEventListener('pause', vUi);
+VID.addEventListener('seeked', () => { if (RV && RV.img === VID) { drawView(); vUi(); } });
+$('vPlay').onclick = () => { if (VID.paused) VID.play().catch(() => {}); else VID.pause(); };
+$('vScrub').oninput = e => { vScrubbing = true; if (VID.duration) VID.currentTime = e.target.value / 1000 * VID.duration; };
+$('vScrub').onchange = () => { vScrubbing = false; };
+
 let orig = false, rafPending = false, lastG = null, zoneShow = false;
 function drawView() {
   if (rafPending) return; rafPending = true;
   requestAnimationFrame(() => {
     rafPending = false;
     const p = curP(); if (!p || !RV.img) return;
+    if (RV.img === VID && VID.readyState >= 2) RV.refresh();
     const G = geomFor(RV.w, RV.h, orig ? newGeo() : p.geo);
     const st = $('stage'), dpr = devicePixelRatio || 1;
     const bw = st.clientWidth * dpr, bh = st.clientHeight * dpr;
@@ -1132,10 +1238,11 @@ $('btnEdit').onclick = () => openEditor();
 /* --- menu ••• de la sélection : coller un réglage sur plusieurs photos sans les ouvrir --- */
 $('btnSelMenu').onclick = () => {
   const list = selList(), n = list.length, pr = LS.get('preset', null);
-  sheet(`<h2>${n} photo${n > 1 ? 's' : ''} sélectionnée${n > 1 ? 's' : ''}</h2>
+  const wd = S.kind === 'video' ? 'vidéo' : 'photo';
+  sheet(`<h2>${n} ${wd}${n > 1 ? 's' : ''} sélectionnée${n > 1 ? 's' : ''}</h2>
     <button class="mitem" id="smPaste" ${S.clip ? '' : 'disabled'}>Coller le réglage${S.clip ? '' : ' (copie d\'abord un réglage dans une photo)'}</button>
     <button class="mitem" id="smPreset" ${pr ? '' : 'disabled'}>Appliquer mon réglage préféré</button>
-    <button class="mitem" id="smEdit">Retoucher ensemble</button>`);
+    <button class="mitem" id="smEdit" ${S.kind === 'video' ? 'hidden' : ''}>Retoucher ensemble</button>`);
   const paste = src => { closeSheet(); for (const p of list) p.settings = normSettings(clone(src)); askSave(list, ok => { if (ok) { S.selected.clear(); S.selMode = false; } renderGallery(); }); };
   $('smPaste').onclick = () => paste(S.clip);
   $('smPreset').onclick = () => paste(pr);
@@ -1153,12 +1260,12 @@ window.onWriteResult = ok => { if (writeResolve) { writeResolve(ok); writeResolv
 const askWrite = ids => new Promise(res => { writeResolve = res; A.requestWrite(JSON.stringify(ids)); });
 
 function askSave(todo, done) {
-  if (!todo.length) { toast("Aucune photo modifiée pour l'instant"); return; }
-  const mode = LS.get('mode', 'replace');
-  sheet(`<h2>Enregistrer ${todo.length} photo${todo.length > 1 ? 's' : ''}</h2>
-    <p>Le nom, la date et le lieu de chaque photo sont conservés.</p>
+  if (!todo.length) { toast("Aucun réglage à enregistrer pour l'instant"); return; }
+  const mode = LS.get('mode', 'replace'), vd = isVid(todo[0]), wd = vd ? 'vidéo' : 'photo';
+  sheet(`<h2>Enregistrer ${todo.length} ${wd}${todo.length > 1 ? 's' : ''}</h2>
+    <p>${vd ? "Le calcul prend à peu près la durée de la vidéo. Il continue en arrière-plan si tu quittes Halo." : "Le nom, la date et le lieu de chaque photo sont conservés."}</p>
     <label class="opt"><input type="radio" name="m" value="replace" ${mode === 'replace' ? 'checked' : ''}><div><b>Remplacer les originales</b><small>Android te demandera une seule confirmation. Les originales sont gardées 30 jours dans l'appli (bouton « Restaurer »).</small></div></label>
-    <label class="opt"><input type="radio" name="m" value="copy" ${mode === 'copy' ? 'checked' : ''}><div><b>Enregistrer des copies</b><small>Dans le dossier Images › Retouches. Les originales ne sont pas touchées.</small></div></label>
+    <label class="opt"><input type="radio" name="m" value="copy" ${mode === 'copy' ? 'checked' : ''}><div><b>Enregistrer des copies</b><small>Dans le dossier ${vd ? 'Movies' : 'Images'} › Retouches. Les originales ne sont pas touchées.</small></div></label>
     <div class="srow"><button class="btn" id="svCancel">Annuler</button><button class="btn primary" id="svGo">Enregistrer</button></div>`);
   if (!A) $('sheet').querySelector('p').textContent = 'Version navigateur : les photos seront téléchargées (nom, date et lieu conservés).';
   $('svCancel').onclick = closeSheet;
@@ -1186,7 +1293,52 @@ async function renderFull(p) {
 }
 const blobToB64 = b => new Promise((res, rej) => { const fr = new FileReader(); fr.onload = () => res(String(fr.result).split(',')[1]); fr.onerror = rej; fr.readAsDataURL(b); });
 
+/* ---------- Vidéos : calcul en arrière-plan par l'appli Android, suivi en pourcentage ---------- */
+let vTimer = null, vOverlay = false, vErrors = [];
+async function saveVideos(list, mode) {
+  if (!A) { toast("L'enregistrement des vidéos se fait dans l'appli Android", 3500); return false; }
+  if (mode === 'replace') {
+    busy(true, 'Confirmation Android…', 0);
+    const ok = await askWrite(list.map(p => p.id));
+    if (!ok) { busy(false); toast('Enregistrement annulé (autorisation refusée)'); return false; }
+  }
+  busy(true, 'Préparation…', 0);
+  const jobs = [];
+  for (const p of list) { try { await ensureThumb(p); } catch (e) {} jobs.push({ id: p.id, mode, e: effective(p) }); }
+  const r = A.startVideoJobs(JSON.stringify(jobs));
+  if (r !== 'ok') { busy(false); toast('Impossible de lancer le calcul : ' + String(r).replace(/^err:/, ''), 4000); return false; }
+  for (const p of list) { p.pending = true; p.savedSig = sig(p); memSave(p, mode); }
+  vOverlay = true; vErrors = []; pollVideo();
+  return true;
+}
+function pollVideo() {
+  clearTimeout(vTimer);
+  let st; try { st = JSON.parse(A.videoStatus()); } catch (e) { return; }
+  for (const j of st.jobs) {
+    const p = S.all.get(j.id); if (!p || !p.pending) continue;
+    if (j.state === 'ok') { p.pending = false; p.saved = true; p.v = Date.now(); if ((MEM[p.id] || {}).mode === 'replace') p.useBackup = true; }
+    if (j.state === 'err') { p.pending = false; p.savedSig = undefined; memForget(p.id); vErrors.push(p.name + ' : ' + j.err); }
+  }
+  if (st.running) {
+    const frac = st.total ? (st.index + st.percent / 100) / st.total : 0;
+    const txt = (st.total > 1 ? `Vidéo ${st.index + 1} / ${st.total} — ` : 'Vidéo — ') + st.percent + ' %';
+    if (vOverlay) { busy(true, txt, frac, st.name); $('busyBg').hidden = false; }
+    $('vjob').hidden = vOverlay; $('vjob').textContent = txt + ' · calcul en cours';
+    vTimer = setTimeout(pollVideo, 600);
+  } else {
+    if (vOverlay) busy(false);
+    vOverlay = false; $('vjob').hidden = true;
+    if (vErrors.length) sheet(`<h2>Vidéo non enregistrée</h2><p>${vErrors.map(x => x.replace(/</g, '&lt;')).join('<br>')}</p><div class="srow"><button class="btn primary" onclick="closeSheet()">OK</button></div>`);
+    else if (st.total) toast(st.total > 1 ? st.total + ' vidéos enregistrées ✓' : 'Vidéo enregistrée ✓', 3500);
+    vErrors = [];
+    if (!$('gallery').hidden) renderGallery();
+  }
+}
+$('busyBg').onclick = () => { vOverlay = false; busy(false); $('vjob').hidden = false; toast('Le calcul continue. Tu peux quitter Halo : suis-le dans les notifications.', 4000); };
+$('vjob').onclick = () => { vOverlay = true; pollVideo(); };
+
 async function saveAll(list, mode) {
+  if (isVid(list[0])) return saveVideos(list, mode);
   if (A && mode === 'replace') {
     busy(true, 'Confirmation Android…', 0);
     const ok = await askWrite(list.map(p => p.id));
@@ -1266,7 +1418,7 @@ $('btnBackups').onclick = () => {
 
 /* ---------- Retour (bouton Android) ---------- */
 window.appBack = () => {
-  if (!$('busy').hidden) return true;
+  if (!$('busy').hidden) { if (vOverlay) $('busyBg').click(); return true; }
   if (!$('sheetWrap').hidden) { closeSheet(); return true; }
   if (!$('editor').hidden) { leaveEditor(); return true; }
   if (S.selMode) { $('btnClearSel').click(); return true; }
@@ -1282,6 +1434,7 @@ try {
 }
 buildTools(); buildFilters(); buildCrop(); syncControls();
 initGallery();
+if (A && A.videoStatus) { try { if (JSON.parse(A.videoStatus()).running) pollVideo(); } catch (e) {} }
 
 /* ---------- Mises à jour (GitHub) ---------- */
 let updManual = false;

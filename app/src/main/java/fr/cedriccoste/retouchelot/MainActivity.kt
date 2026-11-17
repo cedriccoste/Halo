@@ -32,6 +32,7 @@ import androidx.core.content.FileProvider
 import androidx.exifinterface.media.ExifInterface
 import androidx.webkit.WebViewAssetLoader
 import org.json.JSONArray
+import java.io.FileInputStream
 import org.json.JSONObject
 import java.io.ByteArrayInputStream
 import java.io.ByteArrayOutputStream
@@ -60,6 +61,9 @@ class MainActivity : ComponentActivity() {
             js("window.onPermissions && window.onPermissions(${hasMediaPermission()})")
         }
 
+    private val notifLauncher =
+        registerForActivityResult(ActivityResultContracts.RequestPermission()) { }
+
     private val writeLauncher =
         registerForActivityResult(ActivityResultContracts.StartIntentSenderForResult()) { res ->
             js("window.onWriteResult && window.onWriteResult(${res.resultCode == Activity.RESULT_OK})")
@@ -84,8 +88,16 @@ class MainActivity : ComponentActivity() {
         web.settings.allowFileAccess = false
         web.settings.allowContentAccess = false
         web.webViewClient = object : WebViewClient() {
-            override fun shouldInterceptRequest(view: WebView, request: WebResourceRequest): WebResourceResponse? =
-                loader.shouldInterceptRequest(request.url)
+            override fun shouldInterceptRequest(view: WebView, request: WebResourceRequest): WebResourceResponse? {
+                val path = request.url.path ?: ""
+                if (path.startsWith("/media/video/")) {
+                    val range = request.requestHeaders.entries.firstOrNull { it.key.equals("Range", true) }?.value
+                    return try { videoResponse(path.removePrefix("/media/video/"), range) } catch (e: Exception) {
+                        WebResourceResponse("text/plain", "utf-8", 404, "Not found", null, ByteArrayInputStream(ByteArray(0)))
+                    }
+                }
+                return loader.shouldInterceptRequest(request.url)
+            }
         }
         web.addJavascriptInterface(Bridge(), "Android")
         web.loadUrl("https://appassets.androidplatform.net/assets/index.html")
@@ -118,9 +130,10 @@ class MainActivity : ComponentActivity() {
         when {
             Build.VERSION.SDK_INT >= 34 -> {
                 l += Manifest.permission.READ_MEDIA_IMAGES
+                l += Manifest.permission.READ_MEDIA_VIDEO
                 l += Manifest.permission.READ_MEDIA_VISUAL_USER_SELECTED
             }
-            Build.VERSION.SDK_INT >= 33 -> l += Manifest.permission.READ_MEDIA_IMAGES
+            Build.VERSION.SDK_INT >= 33 -> { l += Manifest.permission.READ_MEDIA_IMAGES; l += Manifest.permission.READ_MEDIA_VIDEO }
             else -> l += Manifest.permission.READ_EXTERNAL_STORAGE
         }
         // indispensable pour lire (et donc recopier) la position GPS des photos
@@ -132,7 +145,8 @@ class MainActivity : ComponentActivity() {
 
     private val collection: Uri = MediaStore.Images.Media.EXTERNAL_CONTENT_URI
 
-    private fun uriFor(id: String): Uri = ContentUris.withAppendedId(collection, id.toLong())
+    /** "123" = photo, "v123" = vidéo */
+    private fun uriFor(id: String): Uri = VideoService.uriFor(id)
 
     private fun queryString(uri: Uri, column: String): String? =
         contentResolver.query(uri, arrayOf(column), null, null, null)?.use { c ->
@@ -180,6 +194,96 @@ class MainActivity : ComponentActivity() {
             }
         }
         return out.toString()
+    }
+
+    // ---------------------------------------------------------------- vidéos
+
+    private fun listVideosJson(offset: Int, limit: Int): String {
+        val out = JSONArray()
+        val proj = arrayOf(
+            MediaStore.Video.Media._ID,
+            MediaStore.Video.Media.DISPLAY_NAME,
+            MediaStore.Video.Media.DATE_TAKEN,
+            MediaStore.Video.Media.DATE_ADDED,
+            MediaStore.Video.Media.DURATION,
+        )
+        val args = Bundle().apply {
+            putStringArray(ContentResolver.QUERY_ARG_SORT_COLUMNS, arrayOf(MediaStore.Video.Media.DATE_ADDED))
+            putInt(ContentResolver.QUERY_ARG_SORT_DIRECTION, ContentResolver.QUERY_SORT_DIRECTION_DESCENDING)
+            putInt(ContentResolver.QUERY_ARG_LIMIT, limit)
+            putInt(ContentResolver.QUERY_ARG_OFFSET, offset)
+        }
+        contentResolver.query(MediaStore.Video.Media.EXTERNAL_CONTENT_URI, proj, args, null)?.use { c ->
+            while (c.moveToNext()) {
+                val taken = if (c.isNull(2)) 0L else c.getLong(2)
+                val added = if (c.isNull(3)) 0L else c.getLong(3) * 1000L
+                out.put(JSONObject().apply {
+                    put("id", "v" + c.getLong(0))
+                    put("name", c.getString(1) ?: "video.mp4")
+                    put("date", if (taken > 0) taken else added)
+                    put("duration", if (c.isNull(4)) 0L else c.getLong(4))
+                })
+            }
+        }
+        return out.toString()
+    }
+
+    /** Flux limité à `left` octets (réponses partielles pour le lecteur vidéo). */
+    private class Bounded(private val s: InputStream, private var left: Long) : InputStream() {
+        override fun read(): Int { if (left <= 0) return -1; val r = s.read(); if (r >= 0) left--; return r }
+        override fun read(b: ByteArray, off: Int, len: Int): Int {
+            if (left <= 0) return -1
+            val n = s.read(b, off, minOf(len.toLong(), left).toInt())
+            if (n > 0) left -= n
+            return n
+        }
+        override fun close() = s.close()
+    }
+
+    /** /media/video/{full|orig}/{id} — sert la vidéo au lecteur de l'éditeur, avec avance/retour (Range). */
+    private fun videoResponse(rest: String, range: String?): WebResourceResponse {
+        val parts = rest.split('/')
+        val kind = parts[0]
+        val id = parts[1]
+        val backup = if (kind == "orig") findBackup(id) else null
+        val uri = uriFor(id)
+        val stream: InputStream
+        val total: Long
+        if (backup != null) { stream = FileInputStream(backup); total = backup.length() }
+        else {
+            val afd = contentResolver.openAssetFileDescriptor(uri, "r") ?: throw IllegalStateException("introuvable")
+            total = if (afd.length > 0) afd.length else (queryLong(uri, MediaStore.MediaColumns.SIZE) ?: 0L)
+            stream = afd.createInputStream()
+        }
+        var start = 0L
+        var end = total - 1
+        if (range != null && range.startsWith("bytes=")) {
+            val p = range.substring(6).split('-')
+            start = p[0].toLongOrNull() ?: 0L
+            if (p.size > 1 && p[1].isNotEmpty()) end = minOf(p[1].toLong(), total - 1)
+        }
+        var skip = start
+        while (skip > 0) { val n = stream.skip(skip); if (n <= 0) break; skip -= n }
+        val len = end - start + 1
+        val mime = (if (backup == null) contentResolver.getType(uri) else null) ?: "video/mp4"
+        val headers = mutableMapOf("Accept-Ranges" to "bytes", "Content-Length" to len.toString())
+        if (range != null) headers["Content-Range"] = "bytes $start-$end/$total"
+        return WebResourceResponse(mime, null, if (range != null) 206 else 200, if (range != null) "Partial Content" else "OK", headers, Bounded(stream, len))
+    }
+
+    private fun startVideoJobs(json: String): String {
+        val arr = JSONArray(json)
+        if (!VideoService.running) VideoService.jobs.clear()
+        for (i in 0 until arr.length()) {
+            val o = arr.getJSONObject(i)
+            VideoService.jobs.add(VideoService.Job(o.getString("id"), o.optString("mode", "replace"), o.getJSONObject("e")))
+        }
+        runOnUiThread {
+            if (Build.VERSION.SDK_INT >= 33 && !granted(Manifest.permission.POST_NOTIFICATIONS))
+                notifLauncher.launch(Manifest.permission.POST_NOTIFICATIONS)
+            ContextCompat.startForegroundService(this, Intent(this, VideoService::class.java))
+        }
+        return "ok"
     }
 
     // ---------------------------------------------------------------- sauvegardes des originales
@@ -472,6 +576,17 @@ class MainActivity : ComponentActivity() {
         @JavascriptInterface
         fun restoreBackup(id: String): String =
             try { doRestore(id) } catch (e: Exception) { "err:" + (e.message ?: e.javaClass.simpleName) }
+
+        @JavascriptInterface
+        fun listVideos(offset: Int, limit: Int): String =
+            try { listVideosJson(offset, limit) } catch (e: Exception) { "[]" }
+
+        @JavascriptInterface
+        fun startVideoJobs(json: String): String =
+            try { this@MainActivity.startVideoJobs(json) } catch (e: Exception) { "err:" + (e.message ?: e.javaClass.simpleName) }
+
+        @JavascriptInterface
+        fun videoStatus(): String = VideoService.statusJson()
 
         @JavascriptInterface
         fun getVersion(): String = localVersionName()
