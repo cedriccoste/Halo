@@ -1,0 +1,35 @@
+HALO — retouche de photos par lot (outils façon iPhone)
+=======================================================
+
+INSTALLER / METTRE À JOUR
+- Première installation : sur le téléphone, ouvre
+  https://github.com/cedriccoste/halo/releases/latest/download/halo.apk
+  puis ouvre le fichier téléchargé et autorise l'installation.
+- Ensuite, Halo vérifie tout seul les nouvelles versions à chaque ouverture et affiche
+  « Nouvelle version disponible › Installer ». Touche « vX.Y » à côté du titre pour vérifier à la main.
+- Chaque modification envoyée sur la branche main est compilée par GitHub Actions
+  (onglet Actions) et publiée en « Release ». Le message du commit = les nouveautés affichées.
+- La clé de signature est dans le secret GitHub HALO_KEYSTORE_B64. Garde une copie en lieu sûr :
+  sans elle, une mise à jour exigerait de désinstaller l'appli.
+
+UTILISATION
+- Au premier lancement, autorise l'accès aux photos ET à leur position (pour garder le lieu).
+- Coche les photos d'un bien (« Tout sélectionner » pour une journée) > Retoucher.
+- Ajuster : Auto, Exposition, Brillance, Hautes lumières, Ombres, Contraste, Luminosité,
+  Point noir, Saturation, Vibrance, Chaleur, Teinte, Netteté, Définition, Réduction du bruit,
+  Vignette. Double-tap sur le curseur = remise à zéro.
+- Filtres : Vif, Vif chaud/froid, Spectaculaire (chaud/froid), Mono, Argentique, Noir + intensité.
+- Recadrer : pivoter, formats, redresser, perspective verticale/horizontale (photo par photo).
+- Appui long sur la photo = voir l'originale.
+- « Appliquer à toutes » : copie le réglage sur tout le lot. Si Auto est activé, il est
+  recalculé pour chaque photo, tes réglages s'ajoutent par-dessus.
+- « Mon réglage » : mémorise ton réglage préféré pour les prochains biens.
+- Enregistrer > « Remplacer les originales » : une seule confirmation Android pour tout le lot.
+  Nom, date, lieu GPS et appareil sont conservés. Les originales sont gardées 30 jours
+  (bouton « Restaurer » sur l'écran des photos).
+
+ASTUCE ANTI-DOUBLONS GOOGLE PHOTOS
+- Google Photos > Paramètres > Sauvegarde : « Wi-Fi uniquement ». Retouche tes photos avant de
+  retrouver le Wi-Fi : seules les versions retouchées seront sauvegardées.
+- Sinon : active les piles de photos similaires (Paramètres > Préférences) et supprime
+  l'originale dans la pile.
