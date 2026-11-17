@@ -40,6 +40,10 @@ button{font:inherit;color:inherit;background:none;border:0;padding:0;cursor:poin
 .empty .btn{margin-top:18px;display:inline-block}
 #selBar{position:fixed;left:12px;right:12px;bottom:calc(14px + env(safe-area-inset-bottom));background:rgba(38,38,43,.86);backdrop-filter:blur(20px);-webkit-backdrop-filter:blur(20px);border:1px solid var(--line);border-radius:999px;padding:8px 8px 8px 20px;min-height:0;box-shadow:0 10px 30px rgba(0,0,0,.6)}
 #selBar span{flex:1;font-weight:550}
+#btnSelMenu{letter-spacing:1px;padding:9px 18px}
+.cell{-webkit-user-select:none;user-select:none;-webkit-touch-callout:none}.cell img{pointer-events:none}
+#days:not(.selmode) .chk{display:none}
+.mitem:disabled{opacity:.35}
 #selBar .btn:not(.primary){background:transparent;color:var(--mut)}
 #upd{margin:4px 12px 6px;padding:14px 16px;border-radius:18px;background:linear-gradient(135deg,#2a2210,#1c1a14);border:1px solid rgba(255,207,107,.25);display:flex;flex-direction:column;gap:10px}
 #upd div{min-width:0}#upd b{color:var(--acc);display:block}#upd small{color:#cfc8b4;display:block;white-space:pre-line;overflow-wrap:anywhere;max-height:84px;overflow:hidden}
@@ -158,8 +162,9 @@ button{font:inherit;color:inherit;background:none;border:0;padding:0;cursor:poin
   </div>
   <footer class="bar" id="selBar" hidden>
     <span id="selCount"></span>
-    <button class="btn" id="btnClearSel">Aucune</button>
-    <button class="btn primary" id="btnEdit">Retoucher</button>
+    <button class="btn" id="btnClearSel">Annuler</button>
+    <button class="btn" id="btnEdit">Retoucher</button>
+    <button class="btn primary" id="btnSelMenu" aria-label="Actions">•••</button>
   </footer>
 </section>
 
@@ -173,6 +178,8 @@ button{font:inherit;color:inherit;background:none;border:0;padding:0;cursor:poin
   <div id="row">
     <div id="strip"></div>
     <button class="btn acc" id="btnApplyAll">Appliquer à toutes</button>
+    <button class="btn acc" id="btnCopy1" hidden>Copier le réglage</button>
+    <span id="rowSp" hidden style="flex:1"></span>
     <button class="btn" id="btnMore2" aria-label="Plus d'actions">•••</button>
   </div>
   <div id="actions" hidden>
@@ -598,7 +605,7 @@ const S = {
   cur: 0,
   tool: 'exposure',
   tab: 'pAdjust',
-  clip: null,
+  clip: LS.get('clip', null), selMode: false,
   offset: 0, pageSize: 240, hasMore: false,
 };
 let RV, RT, RE;            // renderers : vue, vignettes, export
@@ -646,14 +653,22 @@ function renderGallery() {
     const h = document.createElement('div'); h.className = 'day';
     const allSel = list.every(p => S.selected.has(p.id));
     h.innerHTML = `<span>${fmtDay(list[0].date)}</span><button>${allSel ? 'Aucune' : 'Tout sélectionner'}</button>`;
-    h.querySelector('button').onclick = () => { list.forEach(p => allSel ? S.selected.delete(p.id) : S.selected.add(p.id)); renderGallery(); };
+    h.querySelector('button').onclick = () => { list.forEach(p => allSel ? S.selected.delete(p.id) : S.selected.add(p.id)); S.selMode = S.selected.size > 0; renderGallery(); };
     const g = document.createElement('div'); g.className = 'grid';
     for (const p of list) {
       const c = document.createElement('div'); c.className = 'cell' + (S.selected.has(p.id) ? ' sel' : '');
       if (p.file) { const cv = document.createElement('canvas'); c.appendChild(cv); ensureThumb(p).then(b => { cv.width = b.width; cv.height = b.height; cv.getContext('2d').drawImage(b, 0, 0); }); }
       else { const im = document.createElement('img'); im.loading = 'lazy'; im.decoding = 'async'; im.src = '/media/thumb/' + p.id + '?v=' + (p.v || 0); c.appendChild(im); }
       c.insertAdjacentHTML('beforeend', '<div class="chk"></div>' + (p.saved ? '<div class="done" title="Déjà retouchée"><svg viewBox="0 0 24 24"><path d="M4.5 19.5 14 10"/><path d="M17 3.5v5M14.5 6h5M19.5 12.5v3M18 14h3"/></svg></div>' : ''));
-      c.onclick = () => { S.selected.has(p.id) ? S.selected.delete(p.id) : S.selected.add(p.id); c.classList.toggle('sel'); updSelBar(); };
+      // appui court : ouvrir la photo — appui long : sélectionner (puis appui court = cocher / décocher)
+      let lpT = null, lpDone = false, sx = 0, sy = 0;
+      const toggle = () => { S.selected.has(p.id) ? S.selected.delete(p.id) : S.selected.add(p.id); c.classList.toggle('sel'); if (!S.selected.size) S.selMode = false; updSelBar(); };
+      c.addEventListener('pointerdown', e => { lpDone = false; sx = e.clientX; sy = e.clientY; clearTimeout(lpT);
+        lpT = setTimeout(() => { lpDone = true; if (!S.selMode) { S.selMode = true; } if (!S.selected.has(p.id)) toggle(); else updSelBar(); try { navigator.vibrate && navigator.vibrate(15); } catch (e) {} }, 420); });
+      c.addEventListener('pointermove', e => { if (Math.hypot(e.clientX - sx, e.clientY - sy) > 10) clearTimeout(lpT); });
+      ['pointerup', 'pointercancel', 'pointerleave'].forEach(ev => c.addEventListener(ev, () => clearTimeout(lpT)));
+      c.addEventListener('contextmenu', e => e.preventDefault());
+      c.onclick = () => { if (lpDone) { lpDone = false; return; } if (S.selMode) toggle(); else openEditor([p]); };
       g.appendChild(c);
     }
     box.appendChild(h); box.appendChild(g);
@@ -662,8 +677,9 @@ function renderGallery() {
   updSelBar();
 }
 function updSelBar() {
+  $('days').classList.toggle('selmode', !!S.selMode);
   const n = S.selected.size;
-  $('selBar').hidden = n === 0;
+  $('selBar').hidden = !S.selMode || n === 0;
   $('selCount').textContent = n + (n > 1 ? ' photos' : ' photo');
 }
 /* ---------- Mémoire des photos déjà retouchées (conservée entre deux ouvertures) ---------- */
@@ -715,18 +731,24 @@ function initGallery() {
 window.onPermissions = granted => { if (granted) { $('permBox').hidden = true; loadAndroidPage(); } else toast("Sans l'accès aux photos, l'appli ne peut rien faire."); };
 $('btnPerm').onclick = () => A.requestPermission();
 $('btnMore').onclick = () => loadAndroidPage();
-$('btnClearSel').onclick = () => { S.selected.clear(); renderGallery(); };
+$('btnClearSel').onclick = () => { S.selected.clear(); S.selMode = false; renderGallery(); };
 $('fileInput').onchange = e => {
   const files = [...e.target.files]; if (!files.length) return;
   for (const f of files) { const id = 'f' + Math.random().toString(36).slice(2); S.all.set(id, { id, name: f.name, date: f.lastModified, file: f, settings: null, geo: newGeo() }); S.order.push(id); S.selected.add(id); }
-  e.target.value = ''; renderGallery();
+  S.selMode = true; e.target.value = ''; renderGallery();
 };
 
 /* ---------- Éditeur ---------- */
 const curP = () => S.batch[S.cur];
-async function openEditor() {
-  S.batch = S.order.filter(id => S.selected.has(id)).map(id => S.all.get(id));
+const selList = () => S.order.filter(id => S.selected.has(id)).map(id => S.all.get(id));
+const sig = p => JSON.stringify([p.settings, p.geo, p.local, p.mask && [p.mask.ver, p.mask.inv]]);
+const unsaved = p => isEdited(p) && sig(p) !== p.savedSig;
+async function openEditor(list) {
+  S.batch = list || selList();
   if (!S.batch.length) return;
+  const one = S.batch.length === 1;
+  $('strip').hidden = one; $('btnApplyAll').hidden = one; $('btnCopy1').hidden = !one; $('rowSp').hidden = !one;
+  for (const p of S.batch) if (p.saved && p.savedSig === undefined) p.savedSig = sig(p);
   $('gallery').hidden = true; $('editor').hidden = false;
   buildStrip();
   busy(true, 'Préparation des photos…', 0);
@@ -1073,8 +1095,9 @@ $('btnApplyAll').onclick = () => {
   for (const q of S.batch) { if (q === p) continue; q.settings = clone(s); n++; drawStripThumb(q); }
   toast(`Réglage appliqué aux ${n} autres photos` + (autoOn(s) ? ' — Auto recalculé pour chacune' : ''));
 };
-$('btnCopy').onclick = () => { const p = curP(); if (!p) return; S.clip = clone(p.settings || newSettings()); toast('Réglage copié'); };
-$('btnPaste').onclick = () => { const p = curP(); if (!p) return; if (!S.clip) return toast("Rien à coller : appuie d'abord sur Copier"); p.settings = clone(S.clip); syncControls(); changed(); toast('Réglage collé'); };
+$('btnCopy').onclick = () => { const p = curP(); if (!p) return; S.clip = clone(p.settings || newSettings()); LS.set('clip', S.clip); toast('Réglage copié — sélectionne des photos puis ••• › Coller', 3200); };
+$('btnCopy1').onclick = () => $('btnCopy').click();
+$('btnPaste').onclick = () => { const p = curP(); if (!p) return; if (!S.clip) return toast("Rien à coller : appuie d'abord sur Copier"); p.settings = normSettings(clone(S.clip)); syncControls(); changed(); toast('Réglage collé'); };
 $('btnReset').onclick = () => { const p = curP(); if (!p) return; p.settings = null; p.geo = newGeo(); p.mask = null; p.local = null; syncControls(); changed(); toast('Photo réinitialisée'); };
 $('btnPreset').onclick = () => {
   const has = !!LS.get('preset', null);
@@ -1094,8 +1117,28 @@ $('btnMore2').onclick = () => {
     <button class="mitem" data-b="btnReset">Réinitialiser la photo</button>`);
   for (const b of $('sheet').querySelectorAll('.mitem')) b.onclick = () => { closeSheet(); $(b.dataset.b).click(); };
 };
-$('btnBack').onclick = () => closeEditor();
+function leaveEditor() {
+  const todo = S.batch.filter(unsaved);
+  if (!todo.length) return closeEditor();
+  sheet(`<h2>Enregistrer les modifications ?</h2><p>${todo.length > 1 ? todo.length + ' photos ont' : 'Cette photo a'} des réglages non enregistrés.</p>
+    <div class="srow"><button class="btn" id="lvNo">Ne pas enregistrer</button><button class="btn primary" id="lvYes">Enregistrer</button></div>`);
+  $('lvNo').onclick = () => { closeSheet(); closeEditor(); };
+  $('lvYes').onclick = () => { closeSheet(); askSave(todo, ok => { if (ok) closeEditor(); }); };
+}
+$('btnBack').onclick = () => leaveEditor();
 $('btnEdit').onclick = () => openEditor();
+/* --- menu ••• de la sélection : coller un réglage sur plusieurs photos sans les ouvrir --- */
+$('btnSelMenu').onclick = () => {
+  const list = selList(), n = list.length, pr = LS.get('preset', null);
+  sheet(`<h2>${n} photo${n > 1 ? 's' : ''} sélectionnée${n > 1 ? 's' : ''}</h2>
+    <button class="mitem" id="smPaste" ${S.clip ? '' : 'disabled'}>Coller le réglage${S.clip ? '' : ' (copie d\'abord un réglage dans une photo)'}</button>
+    <button class="mitem" id="smPreset" ${pr ? '' : 'disabled'}>Appliquer mon réglage préféré</button>
+    <button class="mitem" id="smEdit">Retoucher ensemble</button>`);
+  const paste = src => { closeSheet(); for (const p of list) p.settings = normSettings(clone(src)); askSave(list, ok => { if (ok) { S.selected.clear(); S.selMode = false; } renderGallery(); }); };
+  $('smPaste').onclick = () => paste(S.clip);
+  $('smPreset').onclick = () => paste(pr);
+  $('smEdit').onclick = () => { closeSheet(); openEditor(); };
+};
 
 /* ---------- Feuilles ---------- */
 function sheet(html) { $('sheet').innerHTML = html; $('sheetWrap').hidden = false; }
@@ -1107,9 +1150,8 @@ let writeResolve = null;
 window.onWriteResult = ok => { if (writeResolve) { writeResolve(ok); writeResolve = null; } };
 const askWrite = ids => new Promise(res => { writeResolve = res; A.requestWrite(JSON.stringify(ids)); });
 
-$('btnSave').onclick = () => {
-  const todo = S.batch.filter(isEdited);
-  if (!todo.length) return toast("Aucune photo modifiée pour l'instant");
+function askSave(todo, done) {
+  if (!todo.length) { toast("Aucune photo modifiée pour l'instant"); return; }
   const mode = LS.get('mode', 'replace');
   sheet(`<h2>Enregistrer ${todo.length} photo${todo.length > 1 ? 's' : ''}</h2>
     <p>Le nom, la date et le lieu de chaque photo sont conservés.</p>
@@ -1120,9 +1162,12 @@ $('btnSave').onclick = () => {
   $('svCancel').onclick = closeSheet;
   $('svGo').onclick = async () => {
     const m = $('sheet').querySelector('input[name=m]:checked').value; LS.set('mode', m); closeSheet();
-    await saveAll(todo, m);
+    const ok = await saveAll(todo, m);
+    if (done) done(ok);
   };
-};
+}
+// comme sur l'iPhone : une fois la photo enregistrée, on revient aux photos
+$('btnSave').onclick = () => askSave(S.batch.filter(isEdited), ok => { if (ok && S.batch.length === 1) closeEditor(); });
 
 async function renderFull(p) {
   const blob = await sourceBlob(p);
@@ -1143,7 +1188,7 @@ async function saveAll(list, mode) {
   if (A && mode === 'replace') {
     busy(true, 'Confirmation Android…', 0);
     const ok = await askWrite(list.map(p => p.id));
-    if (!ok) { busy(false); return toast('Enregistrement annulé (autorisation refusée)'); }
+    if (!ok) { busy(false); toast('Enregistrement annulé (autorisation refusée)'); return false; }
   }
   const errors = [];
   for (let i = 0; i < list.length; i++) {
@@ -1164,11 +1209,13 @@ async function saveAll(list, mode) {
         setTimeout(() => URL.revokeObjectURL(a.href), 4000);
         p.saved = true;
       }
+      p.savedSig = sig(p);
     } catch (e) { console.error(e); errors.push(p.name + ' : ' + (e.message || e)); }
   }
   busy(false);
   if (errors.length) sheet(`<h2>${list.length - errors.length} enregistrée(s), ${errors.length} erreur(s)</h2><p>${errors.map(x => x.replace(/</g, '&lt;')).join('<br>')}</p><div class="srow"><button class="btn primary" onclick="closeSheet()">OK</button></div>`);
   else toast(`${list.length} photo${list.length > 1 ? 's' : ''} enregistrée${list.length > 1 ? 's' : ''} ✓`);
+  return !errors.length;
 }
 
 /* ---------- EXIF (version navigateur) : recopie nom/date/GPS ---------- */
@@ -1219,7 +1266,8 @@ $('btnBackups').onclick = () => {
 window.appBack = () => {
   if (!$('busy').hidden) return true;
   if (!$('sheetWrap').hidden) { closeSheet(); return true; }
-  if (!$('editor').hidden) { closeEditor(); return true; }
+  if (!$('editor').hidden) { leaveEditor(); return true; }
+  if (S.selMode) { $('btnClearSel').click(); return true; }
   return false;
 };
 
