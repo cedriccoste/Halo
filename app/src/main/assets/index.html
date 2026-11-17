@@ -96,7 +96,32 @@ button{font:inherit;color:inherit;background:none;border:0;padding:0;cursor:poin
 #zoneBar .rng{flex:1;min-width:70px;width:auto;margin:0 6px}
 #brushRing{position:absolute;left:50%;top:50%;border-radius:50%;border:2px solid #fff;box-shadow:0 0 0 1px rgba(0,0,0,.6),inset 0 0 0 1px rgba(0,0,0,.6);transform:translate(-50%,-50%);pointer-events:none}
 #adjHead b{color:var(--acc);font-weight:600;font-size:15px;font-variant-numeric:tabular-nums}
+#adjPill{font:inherit}
 .sr{position:absolute;opacity:0;pointer-events:none;width:1px;height:1px}
+#adjPill{display:flex;align-items:baseline;gap:8px;font-size:13px;color:var(--mut);padding:4px 10px;border-radius:999px}
+#btnFs{padding:8px 10px!important;display:grid;place-items:center}
+#btnFs svg,#btnFsExit svg{width:20px;height:20px;fill:none;stroke:currentColor;stroke-width:1.8;stroke-linecap:round;stroke-linejoin:round;display:block}
+#btnFsExit{position:absolute;right:12px;top:calc(12px + env(safe-area-inset-top));z-index:7;width:40px;height:40px;border-radius:50%;display:grid;place-items:center;background:rgba(20,20,24,.45);backdrop-filter:blur(14px);-webkit-backdrop-filter:blur(14px);color:#fff}
+/* plein écran : la photo prend tout l'écran, les réglages flottent par-dessus */
+.fs>.bar,.fs #tabs,.fs:not(.isvid) #row{display:none}
+.fs.isvid #row{position:absolute;left:0;right:60px;top:calc(8px + env(safe-area-inset-top));z-index:6}
+.fs.isvid #row #btnMore2{display:none}
+.fs.isvid #vbar{background:rgba(20,20,24,.45);backdrop-filter:blur(14px);-webkit-backdrop-filter:blur(14px);border-radius:999px;padding:4px 14px 4px 4px}
+.fs .pane{position:absolute;left:0;right:0;bottom:0;z-index:6;padding:26px 0 calc(8px + env(safe-area-inset-bottom));background:linear-gradient(transparent,rgba(0,0,0,.5))}
+.fs #adjHead{justify-content:flex-start;padding:0 12px;height:36px;gap:8px}
+.fs #btnZone{position:relative;left:0;background:rgba(20,20,24,.5);backdrop-filter:blur(14px);-webkit-backdrop-filter:blur(14px)}
+.fs #btnZone.on{background:var(--acc)}
+.fs #adjPill{order:-1;background:rgba(20,20,24,.5);backdrop-filter:blur(14px);-webkit-backdrop-filter:blur(14px);padding:7px 14px;color:#fff;font-size:14px}
+.fs #adjPill::after{content:"";width:7px;height:7px;border:solid #fff;border-width:0 1.5px 1.5px 0;transform:rotate(-135deg) translate(-2px,-2px);margin-left:4px;opacity:.8}
+.fs.showtools #adjPill::after{transform:rotate(45deg) translate(-2px,-2px)}
+.fs #dial{opacity:.9}
+.fs .tools{display:none}
+.fs.showtools .tools{display:flex;margin:6px 8px 0;padding:10px 8px 4px;border-radius:22px;background:rgba(20,20,24,.5);backdrop-filter:blur(18px);-webkit-backdrop-filter:blur(18px)}
+.fs .tool .ring::before{background:rgba(0,0,0,.55)}
+.fs .tool small{color:#e8e6e1}
+.fs #zoneBar .chip,.fs .crow .chip{background:rgba(20,20,24,.5);backdrop-filter:blur(14px);-webkit-backdrop-filter:blur(14px)}
+.fs #zoneBar .chip.on,.fs .crow .chip.on{background:var(--acc)}
+.fs .fltHead,.fs .slrow label,.fs .slrow output{color:#fff;text-shadow:0 1px 3px rgba(0,0,0,.8)}
 /* molette */
 #dial{position:relative;height:46px;overflow:hidden;touch-action:none;cursor:ew-resize;-webkit-mask-image:linear-gradient(90deg,transparent,#000 22%,#000 78%,transparent);mask-image:linear-gradient(90deg,transparent,#000 22%,#000 78%,transparent)}
 #dialTicks{position:absolute;left:50%;top:0;bottom:0;will-change:transform}
@@ -190,9 +215,11 @@ button{font:inherit;color:inherit;background:none;border:0;padding:0;cursor:poin
   <header class="bar">
     <button class="btn ghost" id="btnBack">‹ Photos</button>
     <span class="sp" id="counter"></span>
+    <button class="btn ghost" id="btnFs" aria-label="Plein écran"><svg viewBox="0 0 24 24"><path d="M4 9V4h5M20 9V4h-5M4 15v5h5M20 15v5h-5"/></svg></button>
     <button class="btn primary" id="btnSave">Enregistrer</button>
   </header>
   <div id="stage"><canvas id="view"></canvas><div id="badge" hidden>Original</div><div id="brushRing" hidden></div><video id="vid" playsinline preload="auto"></video></div>
+  <button id="btnFsExit" aria-label="Quitter le plein écran" hidden><svg viewBox="0 0 24 24"><path d="M9 4v5H4M15 4v5h5M9 20v-5H4M15 20v-5h5"/></svg></button>
   <div id="row">
     <div id="strip"></div>
     <button class="btn acc" id="btnApplyAll">Appliquer à toutes</button>
@@ -219,7 +246,7 @@ button{font:inherit;color:inherit;background:none;border:0;padding:0;cursor:poin
       <button class="chip" id="zInv">Inverser</button>
       <button class="chip" id="zClear">Effacer</button>
     </div>
-    <div id="adjHead"><button class="chip" id="btnZone">Zone</button><span id="adjName"></span><b id="adjVal"></b></div>
+    <div id="adjHead"><button class="chip" id="btnZone">Zone</button><button id="adjPill" aria-label="Changer de réglage"><span id="adjName"></span><b id="adjVal"></b></button></div>
     <div id="dial"><div id="dialTicks"><i id="dialZero"></i></div><b id="dialMark"></b></div>
     <input type="range" class="sr" id="slider" min="-100" max="100" step="1" value="0" tabindex="-1">
     <div class="tools" id="tools"></div>
@@ -838,7 +865,7 @@ async function openEditor(list) {
   await selectPhoto(0);
 }
 function closeEditor() {
-  $('editor').hidden = true; $('gallery').hidden = false;
+  $('editor').hidden = true; $('gallery').hidden = false; $('editor').classList.remove('fs', 'showtools'); $('btnFsExit').hidden = true;
   try { VID.pause(); VID.removeAttribute('src'); VID.load(); } catch (e) {}
   if (RV) RV.release();
   for (const p of S.batch) { if (p.preview) { p.preview.close(); p.preview = null; } }
@@ -900,6 +927,15 @@ async function selectPhoto(i) {
   if (curP() === p && p.preview) { RV.setImage(p.preview); drawView(); }
   if (S.tab === 'pFilters') drawFilterTiles();
 }
+/* --- plein écran --- */
+function setFs(on) {
+  const ed = $('editor'); ed.classList.toggle('fs', on); ed.classList.remove('showtools');
+  $('btnFsExit').hidden = !on; resetZ(); drawView(); setTimeout(drawView, 60);
+}
+$('btnFs').onclick = () => setFs(true);
+$('btnFsExit').onclick = () => setFs(false);
+$('adjPill').onclick = () => { const ed = $('editor'); if (ed.classList.contains('fs')) ed.classList.toggle('showtools'); };
+
 /* --- lecteur vidéo de l'aperçu --- */
 const VID = $('vid');
 function vUi() {
@@ -957,7 +993,7 @@ function buildTools() {
         else s.auto = autoOn(s) ? null : 50;        // 2e appui = activer / désactiver
         syncControls(); changed(); return;
       }
-      S.tool = t.k; syncControls(); changed();
+      S.tool = t.k; syncControls(); changed(); $('editor').classList.remove('showtools');
       b.scrollIntoView({ inline: 'center', block: 'nearest', behavior: 'smooth' });
     };
     box.appendChild(b);
@@ -1420,6 +1456,7 @@ $('btnBackups').onclick = () => {
 window.appBack = () => {
   if (!$('busy').hidden) { if (vOverlay) $('busyBg').click(); return true; }
   if (!$('sheetWrap').hidden) { closeSheet(); return true; }
+  if (!$('editor').hidden && $('editor').classList.contains('fs')) { setFs(false); return true; }
   if (!$('editor').hidden) { leaveEditor(); return true; }
   if (S.selMode) { $('btnClearSel').click(); return true; }
   return false;
