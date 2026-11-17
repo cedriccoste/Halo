@@ -45,12 +45,21 @@ button{font:inherit;color:inherit;background:none;border:0;padding:0;cursor:poin
 #upd .btn{align-self:stretch;padding:11px}
 #ver{font-size:12px;color:var(--mut);font-weight:400;letter-spacing:0}
 /* éditeur */
-#stage{flex:1;position:relative;display:flex;align-items:center;justify-content:center;overflow:hidden;min-height:120px;touch-action:none;padding:0 6px}
-#view{max-width:100%;max-height:100%;display:block;border-radius:10px}
+#editor>.bar{position:absolute;top:0;left:0;right:0;z-index:5;background:linear-gradient(rgba(0,0,0,.6),transparent);pointer-events:none;padding-bottom:22px}
+#editor>.bar .btn{pointer-events:auto;backdrop-filter:blur(14px);-webkit-backdrop-filter:blur(14px)}
+#editor>.bar .btn.ghost{background:rgba(30,30,34,.55);padding-left:14px}
+#editor>.bar .sp{color:var(--txt);text-shadow:0 1px 4px rgba(0,0,0,.8)}
+#stage{flex:1;position:relative;display:flex;align-items:center;justify-content:center;overflow:hidden;min-height:120px;touch-action:none}
+#view{display:block;transform-origin:center;will-change:transform}
+#row{display:flex;align-items:center;gap:6px;padding:8px 12px 2px;flex:none}
+#row .btn{font-size:13px;padding:8px 13px;flex:none}
+#row .btn.acc{background:rgba(255,207,107,.14);color:var(--acc);font-weight:600}
+#btnMore2{background:var(--s1);letter-spacing:1px}
+.mitem{display:block;width:100%;text-align:left;padding:15px 6px;border-bottom:1px solid var(--line);font-size:16px}
 #badge{position:absolute;top:12px;left:50%;transform:translateX(-50%);background:rgba(0,0,0,.6);backdrop-filter:blur(10px);padding:5px 12px;border-radius:999px;font-size:12px;color:var(--txt)}
-#strip{display:flex;gap:6px;overflow-x:auto;padding:10px 14px 6px;flex:none;scrollbar-width:none}
+#strip{display:flex;gap:6px;overflow-x:auto;padding:4px 3px;flex:1;min-width:0;scrollbar-width:none}
 #strip::-webkit-scrollbar,#actions::-webkit-scrollbar,.tools::-webkit-scrollbar,.filters::-webkit-scrollbar,.crow::-webkit-scrollbar{display:none}
-.sth{position:relative;flex:none;width:46px;height:46px;border-radius:9px;overflow:hidden;opacity:.5;transition:opacity .15s,transform .15s}
+.sth{position:relative;flex:none;width:38px;height:38px;border-radius:9px;overflow:hidden;opacity:.5;transition:opacity .15s,transform .15s}
 .sth.on{opacity:1;transform:scale(1.08);box-shadow:0 0 0 2px var(--acc)}
 .sth canvas{width:100%;height:100%;object-fit:cover;display:block}
 .sth i{position:absolute;right:3px;top:3px;width:7px;height:7px;border-radius:50%;background:var(--acc);box-shadow:0 0 0 1.5px rgba(0,0,0,.5)}
@@ -77,7 +86,7 @@ button{font:inherit;color:inherit;background:none;border:0;padding:0;cursor:poin
 .tool svg{width:23px;height:23px;fill:none;stroke:currentColor;stroke-width:1.6;stroke-linecap:round;stroke-linejoin:round}
 .tool svg .f{fill:currentColor;stroke:none}
 .tool .ring>.num{display:none;font-size:15px;font-weight:600;color:var(--acc);font-variant-numeric:tabular-nums}
-.tool small{font-size:10.5px;color:var(--mut);text-align:center;line-height:1.15;height:24px}
+.tool small{font-size:10.5px;color:var(--mut);text-align:center;line-height:1.15;height:13px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:66px}
 .tool.on .ring::before{background:var(--s1)}
 .tool.on small{color:var(--txt)}
 .tool.on:not(.auto) .ring>.ic{display:none}.tool.on:not(.auto) .ring>.num{display:grid}
@@ -154,9 +163,12 @@ button{font:inherit;color:inherit;background:none;border:0;padding:0;cursor:poin
     <button class="btn primary" id="btnSave">Enregistrer</button>
   </header>
   <div id="stage"><canvas id="view"></canvas><div id="badge" hidden>Original</div></div>
-  <div id="strip"></div>
-  <div id="actions">
+  <div id="row">
+    <div id="strip"></div>
     <button class="btn acc" id="btnApplyAll">Appliquer à toutes</button>
+    <button class="btn" id="btnMore2" aria-label="Plus d'actions">•••</button>
+  </div>
+  <div id="actions" hidden>
     <button class="btn" id="btnCopy">Copier</button>
     <button class="btn" id="btnPaste">Coller</button>
     <button class="btn" id="btnPreset">Mon réglage</button>
@@ -210,7 +222,7 @@ const TOOLS = [
   { k: 'auto', n: 'Auto', i: '<path d="M4.5 19.5 14 10"/><path d="M17 3.5v5M14.5 6h5M19.5 12.5v3M18 14h3M8.5 3.5v3M7 5h3"/>' },
   { k: 'exposure', n: 'Exposition', i: '<circle cx="12" cy="12" r="8.5"/><path d="M8 9.5h3.5M9.75 7.75v3.5M12.5 15h3.5M15.5 7.5l-7 9"/>' },
   { k: 'brilliance', n: 'Brillance', i: '<circle cx="12" cy="12" r="8.5"/><path class="f" d="M12 6.5a5.5 5.5 0 0 1 0 11z"/><path d="M12 3.5v17"/>' },
-  { k: 'highlights', n: 'Hautes lumières', i: '<circle cx="12" cy="12" r="8.5"/><path d="M7 6.5h10M4.5 9.5h15M3.5 12h17"/>' },
+  { k: 'highlights', n: 'H. lumières', i: '<circle cx="12" cy="12" r="8.5"/><path d="M7 6.5h10M4.5 9.5h15M3.5 12h17"/>' },
   { k: 'shadows', n: 'Ombres', i: '<circle cx="12" cy="12" r="8.5"/><path class="f" d="M3.5 12a8.5 8.5 0 0 0 17 0z"/>' },
   { k: 'contrast', n: 'Contraste', i: '<circle cx="12" cy="12" r="8.5"/><path class="f" d="M12 3.5a8.5 8.5 0 0 1 0 17z"/>' },
   { k: 'brightness', n: 'Luminosité', i: '<circle cx="12" cy="12" r="3.5"/><path d="M12 3v2.5M12 18.5V21M3 12h2.5M18.5 12H21M5.6 5.6l1.8 1.8M16.6 16.6l1.8 1.8M5.6 18.4l1.8-1.8M16.6 7.4l1.8-1.8"/>' },
@@ -221,7 +233,7 @@ const TOOLS = [
   { k: 'tint', n: 'Teinte', i: '<path d="M12 3.5c3 4 6 6.8 6 10.5a6 6 0 0 1-12 0c0-3.7 3-6.5 6-10.5z"/>' },
   { k: 'sharpness', n: 'Netteté', i: '<path d="M12 4.5 20.5 19h-17z"/>', min: 0 },
   { k: 'definition', n: 'Définition', i: '<path d="M12 4.5 20.5 19h-17z"/><path class="f" d="M12 11l4.2 7H7.8z"/>', min: 0 },
-  { k: 'noise', n: 'Réduction du bruit', i: '<g class="f"><circle cx="7" cy="7" r="1.3"/><circle cx="12" cy="7" r="1.3"/><circle cx="17" cy="7" r="1.3"/><circle cx="7" cy="12" r="1.3"/><circle cx="12" cy="12" r="1.3"/><circle cx="17" cy="12" r="1.3"/><circle cx="7" cy="17" r="1.3"/><circle cx="12" cy="17" r="1.3"/><circle cx="17" cy="17" r="1.3"/></g>', min: 0 },
+  { k: 'noise', n: 'Bruit', i: '<g class="f"><circle cx="7" cy="7" r="1.3"/><circle cx="12" cy="7" r="1.3"/><circle cx="17" cy="7" r="1.3"/><circle cx="7" cy="12" r="1.3"/><circle cx="12" cy="12" r="1.3"/><circle cx="17" cy="12" r="1.3"/><circle cx="7" cy="17" r="1.3"/><circle cx="12" cy="17" r="1.3"/><circle cx="17" cy="17" r="1.3"/></g>', min: 0 },
   { k: 'vignette', n: 'Vignette', i: '<rect x="3.5" y="5" width="17" height="14" rx="3"/><ellipse cx="12" cy="12" rx="5" ry="3.5"/>' },
 ];
 const ADJ_KEYS = TOOLS.filter(t => t.k !== 'auto').map(t => t.k);
@@ -673,7 +685,7 @@ function renderTo(p, bmp, cv, size, o = {}) {
   } else { cv.width = w; cv.height = h; x.drawImage(RT.cv, 0, 0); }
 }
 async function selectPhoto(i) {
-  S.cur = i;
+  S.cur = i; resetZ();
   S.batch.forEach((p, j) => p._sth && p._sth.classList.toggle('on', j === i));
   S.batch[i]._sth?.scrollIntoView({ inline: 'center', block: 'nearest', behavior: 'smooth' });
   $('counter').textContent = (i + 1) + ' / ' + S.batch.length;
@@ -851,13 +863,58 @@ for (const b of $('tabs').children) b.onclick = () => {
   for (const x of $('tabs').children) x.classList.toggle('on', x === b);
   ['pAdjust', 'pFilters', 'pCrop'].forEach(id => $(id).hidden = id !== S.tab);
   if (S.tab === 'pFilters') drawFilterTiles();
-  drawView();
+  resetZ(); drawView();
 };
 
-/* --- comparer (appui long sur la photo) --- */
+/* --- gestes sur la photo : pincer = zoom, double-tap = zoom, glisser = déplacer, appui long = original --- */
 const stage = $('stage');
-stage.addEventListener('pointerdown', () => { orig = true; drawView(); });
-['pointerup', 'pointercancel', 'pointerleave'].forEach(ev => stage.addEventListener(ev, () => { if (orig) { orig = false; drawView(); } }));
+const Z = { s: 1, x: 0, y: 0 };
+function applyZ() {
+  const cv = $('view');
+  const mx = Math.max(0, (cv.offsetWidth * Z.s - stage.clientWidth) / 2), my = Math.max(0, (cv.offsetHeight * Z.s - stage.clientHeight) / 2);
+  Z.x = clamp(Z.x, -mx, mx); Z.y = clamp(Z.y, -my, my);
+  cv.style.transform = `translate(${Z.x}px,${Z.y}px) scale(${Z.s})`;
+}
+function resetZ() { Z.s = 1; Z.x = 0; Z.y = 0; applyZ(); }
+(() => {
+  const pts = new Map(); let holdT = null, lastTap = 0, st = null, pinch = null;
+  const dist = () => { const [a, b] = [...pts.values()]; return Math.hypot(a.x - b.x, a.y - b.y) || 1; };
+  const stopHold = () => { clearTimeout(holdT); holdT = null; if (orig) { orig = false; drawView(); return true; } return false; };
+  stage.addEventListener('pointerdown', e => {
+    stage.setPointerCapture(e.pointerId);
+    pts.set(e.pointerId, { x: e.clientX, y: e.clientY });
+    if (pts.size === 1) {
+      st = { x: e.clientX, y: e.clientY, zx: Z.x, zy: Z.y, moved: false };
+      holdT = setTimeout(() => { orig = true; drawView(); }, 320);
+    } else if (pts.size === 2) { stopHold(); pinch = { d: dist(), s: Z.s }; if (st) st.moved = true; }
+  });
+  stage.addEventListener('pointermove', e => {
+    if (!pts.has(e.pointerId)) return;
+    pts.set(e.pointerId, { x: e.clientX, y: e.clientY });
+    if (pts.size === 2 && pinch) { Z.s = clamp(pinch.s * dist() / pinch.d, 1, 6); applyZ(); }
+    else if (pts.size === 1 && st) {
+      const dx = e.clientX - st.x, dy = e.clientY - st.y;
+      if (Math.hypot(dx, dy) > 8) { st.moved = true; clearTimeout(holdT); }
+      if (st.moved && Z.s > 1 && !orig) { Z.x = st.zx + dx; Z.y = st.zy + dy; applyZ(); }
+    }
+  });
+  const up = e => {
+    if (!pts.has(e.pointerId)) return;
+    pts.delete(e.pointerId);
+    const wasOrig = stopHold();
+    if (pts.size === 1) { const q = [...pts.values()][0]; st = { x: q.x, y: q.y, zx: Z.x, zy: Z.y, moved: true }; pinch = null; return; }
+    if (pts.size === 0 && st && !st.moved && !wasOrig && e.type === 'pointerup') {
+      const now = Date.now();
+      if (now - lastTap < 300) {
+        if (Z.s > 1) resetZ();
+        else { const r = stage.getBoundingClientRect(); Z.s = 2.5; Z.x = -(e.clientX - r.left - r.width / 2) * 1.5; Z.y = -(e.clientY - r.top - r.height / 2) * 1.5; applyZ(); }
+        lastTap = 0;
+      } else lastTap = now;
+    }
+    if (pts.size === 0) { st = null; pinch = null; }
+  };
+  stage.addEventListener('pointerup', up); stage.addEventListener('pointercancel', up);
+})();
 addEventListener('resize', () => { if (!$('editor').hidden) drawView(); });
 
 /* --- actions --- */
@@ -880,6 +937,14 @@ $('btnPreset').onclick = () => {
   $('psSave').onclick = () => { const p = curP(); LS.set('preset', clone(p.settings || newSettings())); closeSheet(); toast('Réglage mémorisé'); };
   $('psLoad').onclick = () => { const p = curP(); p.settings = normSettings(clone(LS.get('preset'))); closeSheet(); syncControls(); changed(); };
   $('psAll').onclick = () => { const pr = normSettings(LS.get('preset')); for (const q of S.batch) { q.settings = clone(pr); drawStripThumb(q); } closeSheet(); syncControls(); changed(); toast('Mon réglage appliqué à toutes les photos'); };
+};
+$('btnMore2').onclick = () => {
+  sheet(`<h2>Réglages de cette photo</h2>
+    <button class="mitem" data-b="btnCopy">Copier le réglage</button>
+    <button class="mitem" data-b="btnPaste">Coller le réglage</button>
+    <button class="mitem" data-b="btnPreset">Mon réglage préféré…</button>
+    <button class="mitem" data-b="btnReset">Réinitialiser la photo</button>`);
+  for (const b of $('sheet').querySelectorAll('.mitem')) b.onclick = () => { closeSheet(); $(b.dataset.b).click(); };
 };
 $('btnBack').onclick = () => closeEditor();
 $('btnEdit').onclick = () => openEditor();
