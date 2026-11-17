@@ -5,108 +5,128 @@
 <meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no">
 <title>Halo</title>
 <style>
-:root{--bg:#000;--panel:#121212;--line:#2a2a2a;--txt:#f2f2f2;--mut:#8e8e93;--acc:#f5c518;--blue:#0a84ff}
+:root{--bg:#000;--s1:#17171a;--s2:#26262b;--line:rgba(255,255,255,.09);--txt:#f4f2ee;--mut:#9a9aa2;--acc:#ffcf6b;--acc2:#fff1cf}
 *{box-sizing:border-box;-webkit-tap-highlight-color:transparent}
-html,body{margin:0;height:100%;background:var(--bg);color:var(--txt);font:15px/1.35 system-ui,-apple-system,Roboto,sans-serif;overscroll-behavior:none}
+html,body{margin:0;height:100%;background:var(--bg);color:var(--txt);font:15px/1.4 system-ui,-apple-system,Roboto,sans-serif;overscroll-behavior:none;-webkit-font-smoothing:antialiased}
 button{font:inherit;color:inherit;background:none;border:0;padding:0;cursor:pointer}
 [hidden]{display:none!important}
 .view{position:fixed;inset:0;display:flex;flex-direction:column}
-.bar{display:flex;align-items:center;gap:10px;padding:10px 14px;min-height:52px;background:var(--bg);flex:none}
-.bar h1{font-size:20px;margin:0;flex:1}
-.bar .sp{flex:1;text-align:center;color:var(--mut);font-size:14px}
-.btn{padding:8px 14px;border-radius:18px;background:#1f1f1f;font-weight:500;white-space:nowrap}
-.btn.primary{background:var(--acc);color:#000;font-weight:600}
+.bar{display:flex;align-items:center;gap:10px;padding:10px 16px;min-height:56px;flex:none}
+.bar h1{font-size:26px;font-weight:650;letter-spacing:-.02em;margin:0;flex:1;display:flex;align-items:center;gap:10px}
+.halo{width:22px;height:22px;border-radius:50%;flex:none;background:radial-gradient(circle,transparent 52%,var(--acc2) 56%,var(--acc) 68%,transparent 72%);filter:drop-shadow(0 0 6px rgba(255,207,107,.7))}
+.bar .sp{flex:1;text-align:center;color:var(--mut);font-size:14px;font-variant-numeric:tabular-nums}
+.btn{padding:9px 16px;border-radius:999px;background:var(--s2);font-weight:550;white-space:nowrap;transition:transform .12s,opacity .12s}
+.btn:active{transform:scale(.96)}
+.btn.primary{background:var(--acc);color:#1a1300;font-weight:650}
+.btn.ghost{background:transparent;color:var(--txt);padding-left:6px}
 .btn:disabled{opacity:.4}
-.link{color:var(--acc);font-weight:500}
 /* galerie */
-#gScroll{flex:1;overflow:auto;padding:0 2px 90px}
-.day{display:flex;align-items:center;justify-content:space-between;padding:16px 12px 8px;font-weight:600;text-transform:capitalize}
-.day button{color:var(--acc);font-weight:500;font-size:14px;text-transform:none}
-.grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(88px,1fr));gap:2px}
-.cell{position:relative;aspect-ratio:1;background:#1a1a1a;overflow:hidden}
+#gallery>.bar{background:rgba(0,0,0,.72);backdrop-filter:blur(18px);-webkit-backdrop-filter:blur(18px)}
+#gScroll{flex:1;overflow:auto;padding:0 12px 110px}
+.day{display:flex;align-items:baseline;justify-content:space-between;padding:22px 4px 10px;font-size:17px;font-weight:600}
+.day span::first-letter{text-transform:uppercase}
+.day button{color:var(--acc);font-weight:500;font-size:14px}
+.grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(100px,1fr));gap:5px}
+.cell{position:relative;aspect-ratio:1;background:var(--s1);overflow:hidden;border-radius:12px;transition:transform .15s}
 .cell img,.cell canvas{width:100%;height:100%;object-fit:cover;display:block}
-.cell .chk{position:absolute;right:6px;bottom:6px;width:24px;height:24px;border-radius:50%;border:2px solid #fff;background:rgba(0,0,0,.25)}
-.cell.sel::after{content:"";position:absolute;inset:0;box-shadow:inset 0 0 0 3px var(--acc);background:rgba(255,255,255,.08)}
+.cell .chk{position:absolute;right:7px;top:7px;width:22px;height:22px;border-radius:50%;border:1.5px solid rgba(255,255,255,.85);background:rgba(0,0,0,.2)}
+.cell.sel{transform:scale(.93)}
+.cell.sel::after{content:"";position:absolute;inset:0;border-radius:12px;box-shadow:inset 0 0 0 2.5px var(--acc)}
 .cell.sel .chk{background:var(--acc);border-color:var(--acc)}
-.cell.sel .chk::after{content:"✓";position:absolute;inset:0;display:grid;place-items:center;color:#000;font-weight:800;font-size:14px}
-.cell .done{position:absolute;left:6px;top:6px;background:rgba(0,0,0,.6);color:var(--acc);font-size:11px;padding:2px 6px;border-radius:8px}
-.empty{padding:40px 24px;text-align:center;color:var(--mut)}
-.empty .btn{margin-top:16px;display:inline-block}
-#selBar{position:fixed;left:0;right:0;bottom:0;background:rgba(18,18,18,.96);border-top:1px solid var(--line);padding:12px 14px calc(12px + env(safe-area-inset-bottom))}
-#selBar span{flex:1;color:var(--mut)}
+.cell.sel .chk::after{content:"";position:absolute;left:7px;top:3.5px;width:5px;height:10px;border:solid #1a1300;border-width:0 2px 2px 0;transform:rotate(45deg)}
+.cell .done{position:absolute;left:7px;bottom:7px;background:rgba(0,0,0,.6);backdrop-filter:blur(8px);color:var(--acc);font-size:11px;padding:3px 8px;border-radius:999px}
+.empty{padding:56px 28px;text-align:center;color:var(--mut)}
+.empty .btn{margin-top:18px;display:inline-block}
+#selBar{position:fixed;left:12px;right:12px;bottom:calc(14px + env(safe-area-inset-bottom));background:rgba(38,38,43,.86);backdrop-filter:blur(20px);-webkit-backdrop-filter:blur(20px);border:1px solid var(--line);border-radius:999px;padding:8px 8px 8px 20px;min-height:0;box-shadow:0 10px 30px rgba(0,0,0,.6)}
+#selBar span{flex:1;font-weight:550}
+#selBar .btn:not(.primary){background:transparent;color:var(--mut)}
+#upd{margin:4px 12px 6px;padding:14px 16px;border-radius:18px;background:linear-gradient(135deg,#2a2210,#1c1a14);border:1px solid rgba(255,207,107,.25);display:flex;flex-direction:column;gap:10px}
+#upd div{min-width:0}#upd b{color:var(--acc);display:block}#upd small{color:#cfc8b4;display:block;white-space:pre-line;overflow-wrap:anywhere;max-height:84px;overflow:hidden}
+#upd .btn{align-self:stretch;padding:11px}
+#ver{font-size:12px;color:var(--mut);font-weight:400;letter-spacing:0}
 /* éditeur */
-#stage{flex:1;position:relative;display:flex;align-items:center;justify-content:center;overflow:hidden;min-height:120px;touch-action:none}
-#view{max-width:100%;max-height:100%;display:block}
-#badge{position:absolute;top:10px;left:50%;transform:translateX(-50%);background:rgba(0,0,0,.65);padding:4px 10px;border-radius:10px;font-size:12px;letter-spacing:.06em;color:var(--acc)}
-#strip{display:flex;gap:4px;overflow-x:auto;padding:8px 10px;flex:none;scrollbar-width:none}
-#strip::-webkit-scrollbar{display:none}
-.sth{position:relative;flex:none;width:52px;height:52px;border-radius:6px;overflow:hidden;opacity:.6;border:2px solid transparent}
-.sth.on{opacity:1;border-color:var(--acc)}
+#stage{flex:1;position:relative;display:flex;align-items:center;justify-content:center;overflow:hidden;min-height:120px;touch-action:none;padding:0 6px}
+#view{max-width:100%;max-height:100%;display:block;border-radius:10px}
+#badge{position:absolute;top:12px;left:50%;transform:translateX(-50%);background:rgba(0,0,0,.6);backdrop-filter:blur(10px);padding:5px 12px;border-radius:999px;font-size:12px;color:var(--txt)}
+#strip{display:flex;gap:6px;overflow-x:auto;padding:10px 14px 6px;flex:none;scrollbar-width:none}
+#strip::-webkit-scrollbar,#actions::-webkit-scrollbar,.tools::-webkit-scrollbar,.filters::-webkit-scrollbar,.crow::-webkit-scrollbar{display:none}
+.sth{position:relative;flex:none;width:46px;height:46px;border-radius:9px;overflow:hidden;opacity:.5;transition:opacity .15s,transform .15s}
+.sth.on{opacity:1;transform:scale(1.08);box-shadow:0 0 0 2px var(--acc)}
 .sth canvas{width:100%;height:100%;object-fit:cover;display:block}
-.sth i{position:absolute;right:3px;top:3px;width:7px;height:7px;border-radius:50%;background:var(--acc)}
-#actions{display:flex;gap:6px;overflow-x:auto;padding:4px 10px 8px;flex:none;scrollbar-width:none}
-#actions::-webkit-scrollbar{display:none}
-#actions .btn{font-size:13px;padding:7px 12px}
-#actions .btn.acc{background:#2b2408;color:var(--acc)}
-.pane{flex:none;padding:4px 0 6px}
-#adjHead{display:flex;justify-content:center;gap:8px;font-size:13px;color:var(--mut);height:18px;text-transform:uppercase;letter-spacing:.05em}
-#adjHead b{color:var(--txt);font-weight:600}
-.rng{display:block;width:calc(100% - 40px);margin:8px 20px 6px;accent-color:var(--acc);height:28px}
-.tools{display:flex;gap:14px;overflow-x:auto;padding:6px 18px 4px;scroll-snap-type:x proximity;scrollbar-width:none}
-.tools::-webkit-scrollbar{display:none}
-.tool{flex:none;display:flex;flex-direction:column;align-items:center;gap:4px;width:58px;scroll-snap-align:center}
-.tool .ring{width:46px;height:46px;border-radius:50%;display:grid;place-items:center;position:relative;background:conic-gradient(var(--acc) var(--p,0%),#3a3a3a 0)}
+.sth i{position:absolute;right:3px;top:3px;width:7px;height:7px;border-radius:50%;background:var(--acc);box-shadow:0 0 0 1.5px rgba(0,0,0,.5)}
+#actions{display:flex;gap:6px;overflow-x:auto;padding:6px 14px 4px;flex:none;scrollbar-width:none}
+#actions .btn{font-size:13px;padding:7px 13px;background:var(--s1);color:#d6d4cf;font-weight:500}
+#actions .btn.acc{background:rgba(255,207,107,.14);color:var(--acc);font-weight:600}
+.pane{flex:none;padding:2px 0 6px}
+#adjHead{display:flex;justify-content:center;align-items:baseline;gap:8px;font-size:13px;color:var(--mut);height:22px}
+#adjHead b{color:var(--acc);font-weight:600;font-size:15px;font-variant-numeric:tabular-nums}
+.sr{position:absolute;opacity:0;pointer-events:none;width:1px;height:1px}
+/* molette */
+#dial{position:relative;height:46px;overflow:hidden;touch-action:none;cursor:ew-resize;-webkit-mask-image:linear-gradient(90deg,transparent,#000 22%,#000 78%,transparent);mask-image:linear-gradient(90deg,transparent,#000 22%,#000 78%,transparent)}
+#dialTicks{position:absolute;left:50%;top:0;bottom:0;will-change:transform}
+#dialTicks::before,#dialTicks::after{content:"";position:absolute;left:0;right:0;bottom:10px}
+#dialTicks::before{height:9px;background:repeating-linear-gradient(90deg,rgba(255,255,255,.3) 0 1px,transparent 1px 8px)}
+#dialTicks::after{height:16px;background:repeating-linear-gradient(90deg,rgba(255,255,255,.75) 0 1px,transparent 1px 40px)}
+#dialZero{position:absolute;top:6px;width:5px;height:5px;margin-left:-2px;border-radius:50%;background:#fff}
+#dialMark{position:absolute;left:50%;bottom:8px;width:2px;height:26px;margin-left:-.5px;border-radius:2px;background:var(--acc);box-shadow:0 0 8px rgba(255,207,107,.8)}
+.tools{display:flex;gap:6px;overflow-x:auto;padding:8px 14px 2px;scroll-snap-type:x proximity;scrollbar-width:none}
+.tool{flex:none;display:flex;flex-direction:column;align-items:center;gap:5px;width:66px;scroll-snap-align:center}
+.tool .ring{width:50px;height:50px;border-radius:50%;display:grid;place-items:center;position:relative;color:#d6d4cf;background:conic-gradient(from var(--from,0deg),var(--acc) var(--a,0deg),rgba(255,255,255,.14) 0)}
 .tool .ring::before{content:"";position:absolute;inset:2px;border-radius:50%;background:var(--bg)}
-.tool .ring span{position:relative;font-size:19px;line-height:1}
-.tool small{font-size:10px;color:var(--mut);text-align:center;line-height:1.1;height:22px}
-.tool.on .ring::before{background:#2a2a2a}
+.tool .ring>span{position:relative;grid-area:1/1;display:grid;place-items:center}
+.tool svg{width:23px;height:23px;fill:none;stroke:currentColor;stroke-width:1.6;stroke-linecap:round;stroke-linejoin:round}
+.tool svg .f{fill:currentColor;stroke:none}
+.tool .ring>.num{display:none;font-size:15px;font-weight:600;color:var(--acc);font-variant-numeric:tabular-nums}
+.tool small{font-size:10.5px;color:var(--mut);text-align:center;line-height:1.15;height:24px}
+.tool.on .ring::before{background:var(--s1)}
 .tool.on small{color:var(--txt)}
-.tool.auto.active .ring{background:var(--acc)}
-.tool.auto.active .ring::before{background:var(--acc)}
-.tool.auto.active .ring span{color:#000;font-weight:700}
-.filters{display:flex;gap:10px;overflow-x:auto;padding:6px 14px;scrollbar-width:none}
-.filters::-webkit-scrollbar{display:none}
-.flt{flex:none;display:flex;flex-direction:column;align-items:center;gap:4px;font-size:11px;color:var(--mut)}
-.flt canvas{width:64px;height:64px;border-radius:8px;border:2px solid transparent;display:block;background:#1a1a1a}
-.flt.on{color:var(--txt)}.flt.on canvas{border-color:var(--acc)}
-.crow{display:flex;gap:8px;overflow-x:auto;padding:4px 14px 2px;scrollbar-width:none}
-.crow::-webkit-scrollbar{display:none}
-.chip{flex:none;padding:6px 12px;border-radius:14px;background:#1f1f1f;font-size:13px}
-.chip.on{background:var(--acc);color:#000;font-weight:600}
-.slrow{display:flex;align-items:center;gap:8px;padding:0 14px}
-.slrow label{width:84px;font-size:12px;color:var(--mut)}
-.slrow .rng{margin:4px 0;flex:1;width:auto}
-.slrow output{width:34px;text-align:right;font-size:12px;font-variant-numeric:tabular-nums}
-#tabs{display:flex;justify-content:center;gap:28px;padding:8px 0 calc(10px + env(safe-area-inset-bottom));flex:none;border-top:1px solid #161616}
-#tabs button{font-size:13px;color:var(--mut);letter-spacing:.04em;text-transform:uppercase;padding:6px 2px}
-#tabs button.on{color:var(--acc);font-weight:600}
+.tool.on:not(.auto) .ring>.ic{display:none}.tool.on:not(.auto) .ring>.num{display:grid}
+.tool.auto.active .ring{color:#1a1300;background:var(--acc);box-shadow:0 0 16px rgba(255,207,107,.45)}
+.tool.auto.active .ring::before{background:linear-gradient(135deg,var(--acc2),var(--acc))}
+.filters{display:flex;gap:10px;overflow-x:auto;padding:8px 14px 4px;scrollbar-width:none}
+.flt{flex:none;display:flex;flex-direction:column;align-items:center;gap:5px;font-size:11px;color:var(--mut)}
+.flt canvas{width:66px;height:66px;border-radius:12px;display:block;background:var(--s1)}
+.flt.on{color:var(--txt)}.flt.on canvas{box-shadow:0 0 0 2px var(--bg),0 0 0 4px var(--acc)}
+.rng{-webkit-appearance:none;appearance:none;display:block;width:calc(100% - 44px);margin:10px 22px 8px;height:28px;background:transparent}
+.rng::-webkit-slider-runnable-track{height:3px;border-radius:3px;background:rgba(255,255,255,.2)}
+.rng::-webkit-slider-thumb{-webkit-appearance:none;width:22px;height:22px;margin-top:-9.5px;border-radius:50%;background:var(--txt);box-shadow:0 2px 8px rgba(0,0,0,.6)}
+.fltHead{text-align:center;font-size:13px;color:var(--mut);height:20px}.fltHead b{color:var(--acc)}
+.crow{display:flex;gap:6px;overflow-x:auto;padding:6px 14px 4px;scrollbar-width:none}
+.chip{flex:none;padding:7px 13px;border-radius:999px;background:var(--s1);font-size:13px;color:#d6d4cf}
+.chip.on{background:var(--acc);color:#1a1300;font-weight:600}
+.slrow{display:flex;align-items:center;gap:8px;padding:0 16px}
+.slrow label{width:78px;font-size:13px;color:var(--mut)}
+.slrow .rng{margin:2px 0;flex:1;width:auto}
+.slrow output{width:34px;text-align:right;font-size:13px;font-variant-numeric:tabular-nums}
+#tabs{display:flex;align-self:center;gap:2px;margin:6px 0 calc(12px + env(safe-area-inset-bottom));padding:4px;flex:none;background:var(--s1);border-radius:999px}
+#tabs button{font-size:14px;color:var(--mut);padding:8px 18px;border-radius:999px;font-weight:500;transition:background .15s,color .15s}
+#tabs button.on{color:var(--txt);background:var(--s2);font-weight:600}
 /* feuilles & overlay */
-#sheetWrap{position:fixed;inset:0;background:rgba(0,0,0,.55);display:flex;align-items:flex-end;z-index:20}
-#sheet{width:100%;max-height:85%;overflow:auto;background:#1c1c1e;border-radius:16px 16px 0 0;padding:18px 18px calc(18px + env(safe-area-inset-bottom))}
-#sheet h2{font-size:18px;margin:0 0 6px}
+#sheetWrap{position:fixed;inset:0;background:rgba(0,0,0,.6);display:flex;align-items:flex-end;z-index:20}
+#sheet{width:100%;max-height:85%;overflow:auto;background:var(--s1);border-radius:26px 26px 0 0;padding:10px 18px calc(18px + env(safe-area-inset-bottom));animation:up .22s ease-out}
+#sheet::before{content:"";display:block;width:38px;height:4px;border-radius:4px;background:rgba(255,255,255,.22);margin:0 auto 14px}
+@keyframes up{from{transform:translateY(40px);opacity:0}}
+@media (prefers-reduced-motion:reduce){#sheet{animation:none}}
+#sheet h2{font-size:20px;letter-spacing:-.01em;margin:0 0 6px}
 #sheet p{color:var(--mut);margin:6px 0 12px;font-size:14px}
-.opt{display:flex;gap:12px;align-items:flex-start;padding:12px;border-radius:12px;background:#2c2c2e;margin:8px 0}
+.opt{display:flex;gap:12px;align-items:flex-start;padding:14px;border-radius:16px;background:var(--s2);margin:8px 0}
 .opt input{margin-top:3px;accent-color:var(--acc);width:18px;height:18px}
 .opt b{display:block}.opt small{color:var(--mut)}
-.srow{display:flex;gap:10px;margin-top:16px}.srow .btn{flex:1;padding:12px}
-.bitem{display:flex;align-items:center;gap:10px;padding:10px 4px;border-bottom:1px solid #2c2c2e}
+.srow{display:flex;gap:10px;margin-top:14px}.srow .btn{flex:1;padding:13px}
+.bitem{display:flex;align-items:center;gap:10px;padding:12px 4px;border-bottom:1px solid var(--line)}
 .bitem input{accent-color:var(--acc);width:18px;height:18px}
 .bitem span{flex:1;font-size:14px}.bitem small{color:var(--mut)}
-#busy{position:fixed;inset:0;background:rgba(0,0,0,.8);z-index:30;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:14px;text-align:center;padding:30px}
-#busy .bar2{width:70%;height:6px;background:#333;border-radius:3px;overflow:hidden}
+#busy{position:fixed;inset:0;background:rgba(0,0,0,.82);backdrop-filter:blur(8px);z-index:30;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:14px;text-align:center;padding:30px}
+#busy .bar2{width:62%;height:4px;background:rgba(255,255,255,.15);border-radius:4px;overflow:hidden}
 #busy .bar2 i{display:block;height:100%;width:0;background:var(--acc);transition:width .2s}
-#upd{margin:4px 12px 10px;padding:12px 14px;border-radius:14px;background:#2b2408;display:flex;flex-direction:column;gap:10px}
-#upd div{min-width:0}#upd b{color:var(--acc);display:block}#upd small{color:#c9c2a3;display:block;white-space:pre-line;overflow-wrap:anywhere;max-height:84px;overflow:hidden}
-#upd .btn{align-self:stretch;padding:11px}
-#ver{font-size:12px;color:var(--mut);font-weight:400;margin-left:6px}
-#toast{position:fixed;left:50%;top:64px;transform:translateX(-50%);background:#2c2c2e;padding:10px 16px;border-radius:12px;z-index:40;font-size:14px;max-width:88%;text-align:center;opacity:0;transition:opacity .25s;pointer-events:none}
+#toast{position:fixed;left:50%;top:68px;transform:translateX(-50%);background:rgba(38,38,43,.92);backdrop-filter:blur(14px);border:1px solid var(--line);padding:10px 18px;border-radius:999px;z-index:40;font-size:14px;max-width:88%;text-align:center;opacity:0;transition:opacity .25s;pointer-events:none}
 #toast.show{opacity:1}
 </style>
 </head>
 <body>
 
 <section id="gallery" class="view">
-  <header class="bar"><h1>Halo<span id="ver"></span></h1><button class="btn" id="btnBackups" hidden>Restaurer</button></header>
+  <header class="bar"><h1><i class="halo"></i>Halo<span id="ver"></span></h1><button class="btn" id="btnBackups" hidden>Restaurer</button></header>
   <div id="upd" hidden><div><b id="updTitle"></b><small id="updNotes"></small></div><button class="btn primary" id="btnUpd">Installer</button></div>
   <div id="gScroll">
     <div id="permBox" class="empty" hidden>
@@ -129,11 +149,11 @@ button{font:inherit;color:inherit;background:none;border:0;padding:0;cursor:poin
 
 <section id="editor" class="view" hidden>
   <header class="bar">
-    <button class="btn" id="btnBack">‹ Photos</button>
+    <button class="btn ghost" id="btnBack">‹ Photos</button>
     <span class="sp" id="counter"></span>
     <button class="btn primary" id="btnSave">Enregistrer</button>
   </header>
-  <div id="stage"><canvas id="view"></canvas><div id="badge" hidden>ORIGINAL</div></div>
+  <div id="stage"><canvas id="view"></canvas><div id="badge" hidden>Original</div></div>
   <div id="strip"></div>
   <div id="actions">
     <button class="btn acc" id="btnApplyAll">Appliquer à toutes</button>
@@ -144,11 +164,12 @@ button{font:inherit;color:inherit;background:none;border:0;padding:0;cursor:poin
   </div>
   <div id="pAdjust" class="pane">
     <div id="adjHead"><span id="adjName"></span><b id="adjVal"></b></div>
-    <input type="range" class="rng" id="slider" min="-100" max="100" step="1" value="0">
+    <div id="dial"><div id="dialTicks"><i id="dialZero"></i></div><b id="dialMark"></b></div>
+    <input type="range" class="sr" id="slider" min="-100" max="100" step="1" value="0" tabindex="-1">
     <div class="tools" id="tools"></div>
   </div>
   <div id="pFilters" class="pane" hidden>
-    <div id="adjHead2" style="text-align:center;font-size:13px;color:var(--mut);height:18px">INTENSITÉ <b id="fltVal" style="color:var(--txt)"></b></div>
+    <div class="fltHead">Intensité <b id="fltVal"></b></div>
     <input type="range" class="rng" id="fltAmt" min="0" max="100" step="1" value="100">
     <div class="filters" id="filters"></div>
   </div>
@@ -186,22 +207,22 @@ const LS = {
 
 /* ---------- Outils ---------- */
 const TOOLS = [
-  { k: 'auto', n: 'Auto', i: '✦' },
-  { k: 'exposure', n: 'Exposition', i: '±' },
-  { k: 'brilliance', n: 'Brillance', i: '◐' },
-  { k: 'highlights', n: 'Hautes lumières', i: '◓' },
-  { k: 'shadows', n: 'Ombres', i: '◒' },
-  { k: 'contrast', n: 'Contraste', i: '◑' },
-  { k: 'brightness', n: 'Luminosité', i: '☼' },
-  { k: 'blackpoint', n: 'Point noir', i: '●' },
-  { k: 'saturation', n: 'Saturation', i: '◍' },
-  { k: 'vibrance', n: 'Vibrance', i: '❖' },
-  { k: 'warmth', n: 'Chaleur', i: '◔' },
-  { k: 'tint', n: 'Teinte', i: '◕' },
-  { k: 'sharpness', n: 'Netteté', i: '△', min: 0 },
-  { k: 'definition', n: 'Définition', i: '▲', min: 0 },
-  { k: 'noise', n: 'Réduction du bruit', i: '⁘', min: 0 },
-  { k: 'vignette', n: 'Vignette', i: '◎' },
+  { k: 'auto', n: 'Auto', i: '<path d="M4.5 19.5 14 10"/><path d="M17 3.5v5M14.5 6h5M19.5 12.5v3M18 14h3M8.5 3.5v3M7 5h3"/>' },
+  { k: 'exposure', n: 'Exposition', i: '<circle cx="12" cy="12" r="8.5"/><path d="M8 9.5h3.5M9.75 7.75v3.5M12.5 15h3.5M15.5 7.5l-7 9"/>' },
+  { k: 'brilliance', n: 'Brillance', i: '<circle cx="12" cy="12" r="8.5"/><path class="f" d="M12 6.5a5.5 5.5 0 0 1 0 11z"/><path d="M12 3.5v17"/>' },
+  { k: 'highlights', n: 'Hautes lumières', i: '<circle cx="12" cy="12" r="8.5"/><path d="M7 6.5h10M4.5 9.5h15M3.5 12h17"/>' },
+  { k: 'shadows', n: 'Ombres', i: '<circle cx="12" cy="12" r="8.5"/><path class="f" d="M3.5 12a8.5 8.5 0 0 0 17 0z"/>' },
+  { k: 'contrast', n: 'Contraste', i: '<circle cx="12" cy="12" r="8.5"/><path class="f" d="M12 3.5a8.5 8.5 0 0 1 0 17z"/>' },
+  { k: 'brightness', n: 'Luminosité', i: '<circle cx="12" cy="12" r="3.5"/><path d="M12 3v2.5M12 18.5V21M3 12h2.5M18.5 12H21M5.6 5.6l1.8 1.8M16.6 16.6l1.8 1.8M5.6 18.4l1.8-1.8M16.6 7.4l1.8-1.8"/>' },
+  { k: 'blackpoint', n: 'Point noir', i: '<circle cx="12" cy="12" r="8.5"/><circle class="f" cx="12" cy="12" r="3.5"/>' },
+  { k: 'saturation', n: 'Saturation', i: '<circle cx="12" cy="8.8" r="5"/><circle cx="8.5" cy="14.7" r="5"/><circle cx="15.5" cy="14.7" r="5"/>' },
+  { k: 'vibrance', n: 'Vibrance', i: '<path d="M12 4 20.5 19h-17z"/><path d="M12 4v15M7.8 11.5 12 19M16.2 11.5 12 19"/>' },
+  { k: 'warmth', n: 'Chaleur', i: '<path d="M10 14V5a2 2 0 0 1 4 0v9a4 4 0 1 1-4 0z"/><path d="M12 9v7"/>' },
+  { k: 'tint', n: 'Teinte', i: '<path d="M12 3.5c3 4 6 6.8 6 10.5a6 6 0 0 1-12 0c0-3.7 3-6.5 6-10.5z"/>' },
+  { k: 'sharpness', n: 'Netteté', i: '<path d="M12 4.5 20.5 19h-17z"/>', min: 0 },
+  { k: 'definition', n: 'Définition', i: '<path d="M12 4.5 20.5 19h-17z"/><path class="f" d="M12 11l4.2 7H7.8z"/>', min: 0 },
+  { k: 'noise', n: 'Réduction du bruit', i: '<g class="f"><circle cx="7" cy="7" r="1.3"/><circle cx="12" cy="7" r="1.3"/><circle cx="17" cy="7" r="1.3"/><circle cx="7" cy="12" r="1.3"/><circle cx="12" cy="12" r="1.3"/><circle cx="17" cy="12" r="1.3"/><circle cx="7" cy="17" r="1.3"/><circle cx="12" cy="17" r="1.3"/><circle cx="17" cy="17" r="1.3"/></g>', min: 0 },
+  { k: 'vignette', n: 'Vignette', i: '<rect x="3.5" y="5" width="17" height="14" rx="3"/><ellipse cx="12" cy="12" rx="5" ry="3.5"/>' },
 ];
 const ADJ_KEYS = TOOLS.filter(t => t.k !== 'auto').map(t => t.k);
 const MINV = k => (TOOLS.find(t => t.k === k).min ?? -100);
@@ -223,10 +244,10 @@ const CROPS = [
   { k: '16:9', n: '16:9' }, { k: '1:1', n: 'Carré' }, { k: '5:4', n: '5:4' },
 ];
 
-const newSettings = () => ({ auto: 0, adj: Object.fromEntries(ADJ_KEYS.map(k => [k, 0])), filter: 'none', filterAmt: 100 });
+const newSettings = () => ({ auto: null, adj: Object.fromEntries(ADJ_KEYS.map(k => [k, 0])), filter: 'none', filterAmt: 100 });
 const newGeo = () => ({ rot: 0, straighten: 0, vertical: 0, horizontal: 0, crop: 'orig' });
 const clone = o => JSON.parse(JSON.stringify(o));
-const isDefaultSettings = s => !s || (!s.auto && s.filter === 'none' && ADJ_KEYS.every(k => !s.adj[k]));
+const isDefaultSettings = s => !s || (!autoOn(s) && s.filter === 'none' && ADJ_KEYS.every(k => !s.adj[k]));
 const isDefaultGeo = g => !g || (!g.rot && !g.straighten && !g.vertical && !g.horizontal && g.crop === 'orig');
 const isEdited = p => !isDefaultSettings(p.settings) || !isDefaultGeo(p.geo);
 
@@ -246,7 +267,7 @@ function analyzeAuto(bmp) {
     const R = lin(r), G = lin(g), B = lin(b);
     ar += R; ag += G; ab += B;
     const mx = Math.max(r, g, b), mn = Math.min(r, g, b);
-    if (L > 50 && L < 235 && (mx - mn) < 40) { sr += R; sg += G; sb += B; cnt++; }
+    if (L > 60 && L < 240 && (mx - mn) < 22) { sr += R; sg += G; sb += B; cnt++; }
   }
   const pct = p => { let t = p * n, a = 0; for (let i = 0; i < 256; i++) { a += hist[i]; if (a >= t) return i / 255; } return 1; };
   const p01 = pct(.01), p05 = pct(.05), p50 = pct(.5), p95 = pct(.95), p99 = pct(.99);
@@ -259,34 +280,62 @@ function analyzeAuto(bmp) {
   o.exposure = Math.round(ev / 2 * 100 * 0.85);
   // ombres / hautes lumières
   if (p05 < 0.14) o.shadows = Math.round(clamp((0.14 - p05) / 0.14 * 40 + 10, 0, 50));
-  if (p99 > 0.96 || clipF > 0.01) o.highlights = -Math.round(clamp(25 + clipF * 300, 0, 60));
+  if (p99 > 0.96 || clipF > 0.01) o.highlights = -Math.round(clamp(18 + clipF * 200, 0, 42));
   o.brilliance = 18;
   // contraste & point noir
   const spread = p95 - p05;
   if (spread < 0.65) o.contrast = Math.round(clamp((0.65 - spread) * 60, 0, 25));
   else if (spread > 0.92) o.contrast = -8;
-  if (p01 > 0.05) o.blackpoint = Math.round(clamp(p01 * 160, 0, 30));
+  if (p01 > 0.05) o.blackpoint = Math.round(clamp(p01 * 120, 0, 18));
   // balance des blancs (sur les zones presque neutres, sinon moyenne globale)
   let R = sr, G = sg, B = sb;
-  if (cnt < n * 0.03) { R = ar; G = ag; B = ab; }
-  if (R > 0 && G > 0 && B > 0) {
+  // prudence : sans assez de zones neutres (murs blancs, plafonds), on ne touche pas aux couleurs
+  if (cnt >= n * 0.04 && R > 0 && G > 0 && B > 0) {
     const rb = Math.log(R / B) - 0.03;           // garde une légère chaleur
-    o.warmth = Math.round(clamp(-rb / 0.405 * 100 * 0.7, -35, 35));
+    o.warmth = Math.round(clamp(-rb / 0.405 * 100 * 0.5, -24, 24));
     const gc = Math.log(G / Math.sqrt(R * B));
-    o.tint = Math.round(clamp(gc / 0.1625 * 100 * 0.7, -35, 35));
+    o.tint = Math.round(clamp(gc / 0.1625 * 100 * 0.5, -20, 20));
   }
   o.vibrance = 12; o.saturation = 4;
-  return o;
+  // profil de la photo : sert à adapter la course du curseur Auto
+  return {
+    B: o,
+    dark: clamp((0.25 - p05) / 0.25 * 0.6 + (0.45 - p50) / 0.45 * 0.6, 0, 1),   // photo sombre / ombres bouchées
+    hot: clamp((p99 - 0.85) / 0.15 * 0.6 + clipF * 12, 0, 1),                    // fenêtres, ciel brûlé
+    room: clamp(1 - clipF * 25, 0.3, 1) * (p95 < 0.9 ? 1 : 0.6),                 // marge avant de brûler les blancs
+  };
 }
 
 /* ---------- Réglages effectifs (auto + manuel + filtre) ---------- */
-// Auto : curseur 0–100 (50 = normal). Il pilote tous les autres curseurs ;
-// chaque curseur garde en plus le décalage que l'utilisateur lui a donné.
-const autoAmt = s => (s && s.auto === true) ? 50 : (+(s && s.auto) || 0);
+// Auto : null = désactivé, sinon position du curseur 0–100 (50 = réglage conseillé).
+// Chaque réglage suit sa propre courbe, adaptée au profil de la photo : vers la droite,
+// l'image s'ouvre (exposition, ombres, brillance) pendant que les hautes lumières et le
+// contraste baissent et que le point noir remonte ; vers la gauche, rendu plus dense.
+const autoOn = s => !!s && s.auto != null && s.auto !== false;
+const autoPos = s => s.auto === true ? 50 : +s.auto;
+function normSettings(s) { if (s && (s.auto === 0 || s.auto === false || s.auto === undefined)) s.auto = null; if (s && s.auto === true) s.auto = 50; return s; }
+function autoValues(A, pos) {
+  const u = (pos - 50) / 50, ease = x => x * (0.55 + 0.45 * x);
+  const U = ease(Math.max(0, u)), D = ease(Math.max(0, -u));
+  const B = A.B, o = Object.assign({}, B);
+  o.exposure   += U * 16 * A.room            - D * 20;
+  o.brilliance += U * 32                     - D * 24;
+  o.highlights += -U * (12 + 26 * A.hot)     + D * 14;
+  o.shadows    += U * (12 + 30 * A.dark)     - D * (8 + 16 * (1 - A.dark));
+  o.contrast   += -U * (6 + 6 * A.dark)      + D * 18;
+  o.brightness += U * 10                     - D * 6;
+  o.blackpoint += U * (8 + 8 * A.dark)       + D * 8;
+  o.saturation += U * 8                      - D * 10;
+  o.vibrance   += U * 18                     - D * 5;
+  o.warmth     += U * 4                      - D * 3;
+  o.definition += U * 10                     + D * 6;
+  for (const k of ADJ_KEYS) o[k] = Math.round(clamp(o[k], MINV(k), 100));
+  return o;
+}
 function autoPart(p, s, k) {
-  const a = autoAmt(s); if (!a) return 0;
+  if (!autoOn(s)) return 0;
   if (!p.auto && p.thumb) p.auto = analyzeAuto(p.thumb);
-  return p.auto ? Math.round(p.auto[k] * a / 50) : 0;
+  return p.auto ? autoValues(p.auto, autoPos(s))[k] : 0;
 }
 const shownVal = (p, s, k) => clamp(s.adj[k] + autoPart(p, s, k), MINV(k), 100);
 function effective(p, opts = {}) {
@@ -673,46 +722,56 @@ function buildTools() {
   const box = $('tools'); box.innerHTML = '';
   for (const t of TOOLS) {
     const b = document.createElement('button'); b.className = 'tool' + (t.k === 'auto' ? ' auto' : ''); b.dataset.k = t.k;
-    b.innerHTML = `<div class="ring"><span>${t.i}</span></div><small>${t.n}</small>`;
+    b.innerHTML = `<div class="ring"><span class="ic"><svg viewBox="0 0 24 24">${t.i}</svg></span><span class="num"></span></div><small>${t.n}</small>`;
     b.onclick = () => {
       const p = curP(); if (!p) return;
       if (t.k === 'auto') {
         const s = ensureSettings(p);
-        if (S.tool !== 'auto') { S.tool = 'auto'; if (!autoAmt(s)) s.auto = 50; }
-        else s.auto = autoAmt(s) ? 0 : 50;          // 2e appui = activer / désactiver
+        if (S.tool !== 'auto') { S.tool = 'auto'; if (!autoOn(s)) s.auto = 50; }
+        else s.auto = autoOn(s) ? null : 50;        // 2e appui = activer / désactiver
         syncControls(); changed(); return;
       }
       S.tool = t.k; syncControls(); changed();
+      b.scrollIntoView({ inline: 'center', block: 'nearest', behavior: 'smooth' });
     };
     box.appendChild(b);
   }
 }
 function fmtV(v) { return v > 0 ? '+' + v : String(v); }
+const PXU = 4;                                      // pixels de molette par unité
+function drawDial() {
+  const sl = $('slider'), min = +sl.min, max = +sl.max, v = +sl.value;
+  const tk = $('dialTicks');
+  tk.style.width = ((max - min) * PXU + 1) + 'px';
+  tk.style.transform = `translateX(${-(v - min) * PXU}px)`;
+  const def = S.tool === 'auto' ? 50 : 0;
+  $('dialZero').style.left = ((def - min) * PXU) + 'px';
+}
 function syncControls() {
   const p = curP(); const s = (p && p.settings) || newSettings();
+  const on = autoOn(s);
   for (const b of $('tools').children) {
-    const k = b.dataset.k;
+    const k = b.dataset.k, ring = b.querySelector('.ring');
     b.classList.toggle('on', k === S.tool);
-    if (k === 'auto') {
-      b.classList.toggle('active', !!autoAmt(s));
-      b.querySelector('.ring').style.setProperty('--p', autoAmt(s) + '%');
-      continue;
-    }
-    const v = p ? shownVal(p, s, k) : 0;
-    b.querySelector('.ring').style.setProperty('--p', Math.abs(v) + '%');
+    if (k === 'auto') { b.classList.toggle('active', on); continue; }
+    const v = p ? shownVal(p, s, k) : 0, a = Math.abs(v) * 3.6;
+    ring.style.setProperty('--a', a + 'deg');
+    ring.style.setProperty('--from', (v < 0 ? 360 - a : 0) + 'deg');
+    b.querySelector('.num').textContent = v;
   }
   const t = TOOLS.find(t => t.k === S.tool);
   const sl = $('slider');
   if (S.tool === 'auto') {
-    sl.min = 0; sl.max = 100; sl.value = autoAmt(s);
+    sl.min = 0; sl.max = 100; sl.value = on ? autoPos(s) : 50;
     $('adjName').textContent = 'Auto';
-    $('adjVal').textContent = autoAmt(s) ? String(autoAmt(s)) : 'désactivé';
+    $('adjVal').textContent = on ? String(autoPos(s)) : 'désactivé';
   } else {
     const v = p ? shownVal(p, s, S.tool) : 0;
     sl.min = t.min ?? -100; sl.max = 100; sl.value = v;
     $('adjName').textContent = t.n;
     $('adjVal').textContent = fmtV(v);
   }
+  drawDial();
   // filtres
   $('fltAmt').value = s.filterAmt; $('fltVal').textContent = s.filter === 'none' ? '' : s.filterAmt;
   for (const el of $('filters').children) el.classList.toggle('on', el.dataset.k === s.filter);
@@ -724,21 +783,31 @@ function syncControls() {
 $('slider').oninput = e => {
   const p = curP(); if (!p) return; const s = ensureSettings(p);
   const v = +e.target.value;
-  if (S.tool === 'auto') {
-    s.auto = v;                                   // fait bouger tous les autres curseurs
-    syncControls();
-  } else {
-    s.adj[S.tool] = v - autoPart(p, s, S.tool);   // on garde l'écart par rapport à l'Auto
-    $('adjVal').textContent = fmtV(v);
-    const b = $('tools').querySelector(`[data-k="${S.tool}"] .ring`); if (b) b.style.setProperty('--p', Math.abs(v) + '%');
-  }
-  changed();
+  if (S.tool === 'auto') s.auto = v;                          // fait évoluer tous les autres réglages
+  else s.adj[S.tool] = v - autoPart(p, s, S.tool);            // on garde l'écart par rapport à l'Auto
+  syncControls(); changed();
 };
 $('slider').ondblclick = () => {
   const p = curP(); if (!p) return; const s = ensureSettings(p);
-  if (S.tool === 'auto') s.auto = 50; else s.adj[S.tool] = 0;   // retour à la valeur Auto
+  if (S.tool === 'auto') s.auto = 50; else s.adj[S.tool] = 0;   // retour à la valeur conseillée
   syncControls(); changed();
 };
+/* molette : on fait glisser la règle sous le repère, comme sur l'iPhone */
+(() => {
+  const d = $('dial'), sl = $('slider'); let x0 = 0, v0 = 0, drag = false, moved = false, lastTap = 0;
+  d.addEventListener('pointerdown', e => { drag = true; moved = false; x0 = e.clientX; v0 = +sl.value; d.setPointerCapture(e.pointerId); });
+  d.addEventListener('pointermove', e => {
+    if (!drag) return;
+    const dx = e.clientX - x0; if (Math.abs(dx) > 3) moved = true;
+    const v = Math.round(clamp(v0 - dx / PXU, +sl.min, +sl.max));
+    if (v !== +sl.value) { sl.value = v; sl.dispatchEvent(new Event('input')); }
+  });
+  const end = () => {
+    if (!drag) return; drag = false;
+    if (!moved) { const now = Date.now(); if (now - lastTap < 320) sl.dispatchEvent(new Event('dblclick')); lastTap = now; }
+  };
+  d.addEventListener('pointerup', end); d.addEventListener('pointercancel', end);
+})();
 
 /* --- filtres --- */
 function buildFilters() {
@@ -797,7 +866,7 @@ $('btnApplyAll').onclick = () => {
   const s = clone(p.settings || newSettings());
   let n = 0;
   for (const q of S.batch) { if (q === p) continue; q.settings = clone(s); n++; drawStripThumb(q); }
-  toast(`Réglage appliqué aux ${n} autres photos` + (autoAmt(s) ? ' (Auto recalculé pour chacune)' : ''));
+  toast(`Réglage appliqué aux ${n} autres photos` + (autoOn(s) ? ' — Auto recalculé pour chacune' : ''));
 };
 $('btnCopy').onclick = () => { const p = curP(); if (!p) return; S.clip = clone(p.settings || newSettings()); toast('Réglage copié'); };
 $('btnPaste').onclick = () => { const p = curP(); if (!p) return; if (!S.clip) return toast("Rien à coller : appuie d'abord sur Copier"); p.settings = clone(S.clip); syncControls(); changed(); toast('Réglage collé'); };
@@ -809,8 +878,8 @@ $('btnPreset').onclick = () => {
     <div class="srow"><button class="btn primary" id="psLoad" ${has ? '' : 'disabled'}>Appliquer à cette photo</button></div>
     <div class="srow"><button class="btn" id="psAll" ${has ? '' : 'disabled'}>Appliquer à toutes les photos</button></div>`);
   $('psSave').onclick = () => { const p = curP(); LS.set('preset', clone(p.settings || newSettings())); closeSheet(); toast('Réglage mémorisé'); };
-  $('psLoad').onclick = () => { const p = curP(); p.settings = clone(LS.get('preset')); closeSheet(); syncControls(); changed(); };
-  $('psAll').onclick = () => { const pr = LS.get('preset'); for (const q of S.batch) { q.settings = clone(pr); drawStripThumb(q); } closeSheet(); syncControls(); changed(); toast('Mon réglage appliqué à toutes les photos'); };
+  $('psLoad').onclick = () => { const p = curP(); p.settings = normSettings(clone(LS.get('preset'))); closeSheet(); syncControls(); changed(); };
+  $('psAll').onclick = () => { const pr = normSettings(LS.get('preset')); for (const q of S.batch) { q.settings = clone(pr); drawStripThumb(q); } closeSheet(); syncControls(); changed(); toast('Mon réglage appliqué à toutes les photos'); };
 };
 $('btnBack').onclick = () => closeEditor();
 $('btnEdit').onclick = () => openEditor();
@@ -846,7 +915,7 @@ async function renderFull(p) {
   const blob = await sourceBlob(p);
   const maxSide = Math.min(RE.maxTex, 8192);
   const bmp = await decode(blob, maxSide);
-  if (autoAmt(p.settings) && !p.auto) p.auto = analyzeAuto(p.thumb || bmp);
+  if (autoOn(p.settings) && !p.auto) p.auto = analyzeAuto(p.thumb || bmp);
   RE.setImage(bmp);
   const G = geomFor(bmp.width, bmp.height, p.geo);
   RE.render(effective(p), G, G.outW, G.outH);
@@ -956,7 +1025,7 @@ let updManual = false;
 window.onUpdateInfo = info => {
   if (info && typeof info === 'object') {
     $('updTitle').textContent = 'Nouvelle version ' + info.version + ' disponible';
-    $('updNotes').textContent = info.notes || '';
+    $('updNotes').textContent = (info.notes || '').split('\n').filter(l => !/^(Co-Authored-By|Claude-Session)/.test(l)).join('\n').trim();
     $('btnUpd').textContent = 'Installer'; $('btnUpd').disabled = false;
     $('upd').hidden = false;
   } else if (updManual) {
