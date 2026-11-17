@@ -34,7 +34,8 @@ button{font:inherit;color:inherit;background:none;border:0;padding:0;cursor:poin
 .cell.sel::after{content:"";position:absolute;inset:0;border-radius:12px;box-shadow:inset 0 0 0 2.5px var(--acc)}
 .cell.sel .chk{background:var(--acc);border-color:var(--acc)}
 .cell.sel .chk::after{content:"";position:absolute;left:7px;top:3.5px;width:5px;height:10px;border:solid #1a1300;border-width:0 2px 2px 0;transform:rotate(45deg)}
-.cell .done{position:absolute;left:7px;bottom:7px;background:rgba(0,0,0,.6);backdrop-filter:blur(8px);color:var(--acc);font-size:11px;padding:3px 8px;border-radius:999px}
+.cell .done{position:absolute;left:6px;bottom:6px;width:24px;height:24px;border-radius:50%;display:grid;place-items:center;background:linear-gradient(135deg,var(--acc2),var(--acc));color:#1a1300;box-shadow:0 2px 8px rgba(0,0,0,.5)}
+.cell .done svg{width:15px;height:15px;fill:none;stroke:currentColor;stroke-width:2;stroke-linecap:round}
 .empty{padding:56px 28px;text-align:center;color:var(--mut)}
 .empty .btn{margin-top:18px;display:inline-block}
 #selBar{position:fixed;left:12px;right:12px;bottom:calc(14px + env(safe-area-inset-bottom));background:rgba(38,38,43,.86);backdrop-filter:blur(20px);-webkit-backdrop-filter:blur(20px);border:1px solid var(--line);border-radius:999px;padding:8px 8px 8px 20px;min-height:0;box-shadow:0 10px 30px rgba(0,0,0,.6)}
@@ -572,7 +573,7 @@ async function fetchBlob(url) { const r = await fetch(url); if (!r.ok) throw new
 async function sourceBlob(p) { if (p.file) return p.file; return fetchBlob('/media/' + (p.useBackup ? 'orig' : 'full') + '/' + p.id + '?v=' + (p.v || 0)); }
 async function ensureThumb(p) {
   if (p.thumb) return p.thumb;
-  const blob = p.file ? p.file : await fetchBlob('/media/thumb/' + p.id + '?v=' + (p.v || 0));
+  const blob = p.file ? p.file : await fetchBlob('/media/' + (p.useBackup ? 'orig' : 'thumb') + '/' + p.id + '?v=' + (p.v || 0));
   p.thumb = await decode(blob, 480);
   return p.thumb;
 }
@@ -598,7 +599,7 @@ function renderGallery() {
       const c = document.createElement('div'); c.className = 'cell' + (S.selected.has(p.id) ? ' sel' : '');
       if (p.file) { const cv = document.createElement('canvas'); c.appendChild(cv); ensureThumb(p).then(b => { cv.width = b.width; cv.height = b.height; cv.getContext('2d').drawImage(b, 0, 0); }); }
       else { const im = document.createElement('img'); im.loading = 'lazy'; im.decoding = 'async'; im.src = '/media/thumb/' + p.id + '?v=' + (p.v || 0); c.appendChild(im); }
-      c.insertAdjacentHTML('beforeend', '<div class="chk"></div>' + (p.saved ? '<div class="done">Retouchée</div>' : ''));
+      c.insertAdjacentHTML('beforeend', '<div class="chk"></div>' + (p.saved ? '<div class="done" title="Déjà retouchée"><svg viewBox="0 0 24 24"><path d="M4.5 19.5 14 10"/><path d="M17 3.5v5M14.5 6h5M19.5 12.5v3M18 14h3"/></svg></div>' : ''));
       c.onclick = () => { S.selected.has(p.id) ? S.selected.delete(p.id) : S.selected.add(p.id); c.classList.toggle('sel'); updSelBar(); };
       g.appendChild(c);
     }
@@ -612,11 +613,29 @@ function updSelBar() {
   $('selBar').hidden = n === 0;
   $('selCount').textContent = n + (n > 1 ? ' photos' : ' photo');
 }
+/* ---------- Mémoire des photos déjà retouchées (conservée entre deux ouvertures) ---------- */
+const MEM = LS.get('done', {});
+let backupIds = null;
+function memSave(p, mode) {
+  MEM[p.id] = { t: Date.now(), mode, settings: p.settings, geo: p.geo };
+  const ids = Object.keys(MEM);
+  if (ids.length > 3000) ids.sort((a, b) => MEM[a].t - MEM[b].t).slice(0, ids.length - 3000).forEach(k => delete MEM[k]);
+  LS.set('done', MEM);
+}
+function memForget(id) { delete MEM[id]; LS.set('done', MEM); }
+function memApply(p) {
+  const m = MEM[p.id]; if (!m) return;
+  p.saved = true;
+  if (backupIds === null) { try { backupIds = new Set(JSON.parse(A.listBackups()).map(b => b.id)); } catch (e) { backupIds = new Set(); } }
+  // on ne reprend les réglages que si l'on peut repartir de l'originale (sinon ils s'appliqueraient deux fois)
+  if (m.mode === 'copy') { p.settings = normSettings(m.settings); p.geo = m.geo || newGeo(); }
+  else if (backupIds.has(p.id)) { p.settings = normSettings(m.settings); p.geo = m.geo || newGeo(); p.useBackup = true; }
+}
 function loadAndroidPage() {
   let list = [];
   try { list = JSON.parse(A.listPhotos(S.offset, S.pageSize)); } catch (e) { toast('Erreur de lecture des photos'); }
   for (const it of list) {
-    if (!S.all.has(it.id)) { S.all.set(it.id, { id: it.id, name: it.name, date: it.date, settings: null, geo: newGeo() }); S.order.push(it.id); }
+    if (!S.all.has(it.id)) { const ph = { id: it.id, name: it.name, date: it.date, settings: null, geo: newGeo() }; memApply(ph); S.all.set(it.id, ph); S.order.push(it.id); }
   }
   S.offset += list.length; S.hasMore = list.length === S.pageSize;
   renderGallery();
@@ -1007,8 +1026,8 @@ async function saveAll(list, mode) {
       if (A) {
         const r = A.saveImage(p.id, await blobToB64(out), mode);
         if (!String(r).startsWith('ok')) throw new Error(String(r).replace(/^err:/, ''));
-        if (mode === 'replace' && r === 'ok') { p.useBackup = true; p.saved = true; p.v = Date.now(); }
-        if (r === 'ok:copy') p.saved = true;
+        if (mode === 'replace' && r === 'ok') { p.useBackup = true; p.saved = true; p.v = Date.now(); memSave(p, 'replace'); if (backupIds) backupIds.add(p.id); }
+        if (r === 'ok:copy') { p.saved = true; memSave(p, 'copy'); }
       } else {
         const withExif = await transplantExif(srcBlob, out);
         const a = document.createElement('a'); a.href = URL.createObjectURL(withExif);
@@ -1062,7 +1081,7 @@ $('btnBackups').onclick = () => {
     closeSheet();
     const ok = await askWrite(ids); if (!ok) return toast('Restauration annulée');
     let n = 0;
-    for (const id of ids) { const r = A.restoreBackup(id); if (r === 'ok') { n++; const p = S.all.get(id); if (p) { p.v = Date.now(); p.saved = false; p.useBackup = false; p.thumb = null; p.preview = null; p.auto = null; } } }
+    for (const id of ids) { const r = A.restoreBackup(id); if (r === 'ok') { n++; memForget(id); const p = S.all.get(id); if (p) { p.v = Date.now(); p.saved = false; p.useBackup = false; p.thumb = null; p.preview = null; p.auto = null; p.settings = null; p.geo = newGeo(); } } }
     toast(`${n} photo${n > 1 ? 's' : ''} restaurée${n > 1 ? 's' : ''}`); renderGallery();
   };
 };
