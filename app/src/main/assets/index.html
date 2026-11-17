@@ -77,6 +77,8 @@ button{font:inherit;color:inherit;background:none;border:0;padding:0;cursor:poin
 #btnZone::before{content:"";position:absolute;left:10px;top:50%;width:10px;height:10px;margin-top:-6px;border-radius:50%;border:1.5px dashed currentColor}
 #zoneBar{display:flex;align-items:center;gap:6px;padding:4px 12px 6px;overflow-x:auto;scrollbar-width:none}
 #zoneBar::-webkit-scrollbar{display:none}
+#zoneBar .ico{width:38px;height:38px;padding:0;display:grid;place-items:center;border-radius:50%}
+#zoneBar .ico svg{width:20px;height:20px;fill:none;stroke:currentColor;stroke-width:1.7;stroke-linecap:round;stroke-linejoin:round}
 #zoneBar .rng{flex:1;min-width:70px;width:auto;margin:0 6px}
 #brushRing{position:absolute;left:50%;top:50%;border-radius:50%;border:2px solid #fff;box-shadow:0 0 0 1px rgba(0,0,0,.6),inset 0 0 0 1px rgba(0,0,0,.6);transform:translate(-50%,-50%);pointer-events:none}
 #adjHead b{color:var(--acc);font-weight:600;font-size:15px;font-variant-numeric:tabular-nums}
@@ -190,8 +192,8 @@ button{font:inherit;color:inherit;background:none;border:0;padding:0;cursor:poin
   </div>
   <div id="pAdjust" class="pane">
     <div id="zoneBar" hidden>
-      <button class="chip on" id="zPaint">Peindre</button>
-      <button class="chip" id="zErase">Gommer</button>
+      <button class="chip ico on" id="zPaint" aria-label="Peindre"><svg viewBox="0 0 24 24"><path d="M18.5 3.5 9.5 12.5l2 2 9-9a1.4 1.4 0 0 0-2-2z"/><path d="M9 13c-2.5 0-3.5 2-3.5 3.5 0 1.5-1 2.5-2 3 3.5.5 7.5-.5 7.5-4.5"/></svg></button>
+      <button class="chip ico" id="zErase" aria-label="Gommer"><svg viewBox="0 0 24 24"><path d="M8.5 19.5 3.8 14.8a1.5 1.5 0 0 1 0-2.1l8.4-8.4a1.5 1.5 0 0 1 2.1 0l5.4 5.4a1.5 1.5 0 0 1 0 2.1l-7.7 7.7z"/><path d="M8 9l7 7M8.5 19.5H20"/></svg></button>
       <input type="range" class="rng" id="zSize" min="3" max="40" step="1" value="14" aria-label="Taille du pinceau">
       <button class="chip" id="zInv">Inverser</button>
       <button class="chip" id="zClear">Effacer</button>
