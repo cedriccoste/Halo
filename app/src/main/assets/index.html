@@ -68,7 +68,13 @@ button{font:inherit;color:inherit;background:none;border:0;padding:0;cursor:poin
 #actions .btn{font-size:13px;padding:7px 13px;background:var(--s1);color:#d6d4cf;font-weight:500}
 #actions .btn.acc{background:rgba(255,207,107,.14);color:var(--acc);font-weight:600}
 .pane{flex:none;padding:2px 0 6px}
-#adjHead{display:flex;justify-content:center;align-items:baseline;gap:8px;font-size:13px;color:var(--mut);height:22px}
+#adjHead{position:relative;display:flex;justify-content:center;align-items:center;gap:8px;font-size:13px;color:var(--mut);height:30px}
+#btnZone{position:absolute;left:12px;top:0;padding:5px 12px 5px 26px;font-size:13px}
+#btnZone::before{content:"";position:absolute;left:10px;top:50%;width:10px;height:10px;margin-top:-6px;border-radius:50%;border:1.5px dashed currentColor}
+#zoneBar{display:flex;align-items:center;gap:6px;padding:4px 12px 6px;overflow-x:auto;scrollbar-width:none}
+#zoneBar::-webkit-scrollbar{display:none}
+#zoneBar .rng{flex:1;min-width:70px;width:auto;margin:0 6px}
+#brushRing{position:absolute;left:50%;top:50%;border-radius:50%;border:2px solid #fff;box-shadow:0 0 0 1px rgba(0,0,0,.6),inset 0 0 0 1px rgba(0,0,0,.6);transform:translate(-50%,-50%);pointer-events:none}
 #adjHead b{color:var(--acc);font-weight:600;font-size:15px;font-variant-numeric:tabular-nums}
 .sr{position:absolute;opacity:0;pointer-events:none;width:1px;height:1px}
 /* molette */
@@ -163,7 +169,7 @@ button{font:inherit;color:inherit;background:none;border:0;padding:0;cursor:poin
     <span class="sp" id="counter"></span>
     <button class="btn primary" id="btnSave">Enregistrer</button>
   </header>
-  <div id="stage"><canvas id="view"></canvas><div id="badge" hidden>Original</div></div>
+  <div id="stage"><canvas id="view"></canvas><div id="badge" hidden>Original</div><div id="brushRing" hidden></div></div>
   <div id="row">
     <div id="strip"></div>
     <button class="btn acc" id="btnApplyAll">Appliquer à toutes</button>
@@ -176,7 +182,14 @@ button{font:inherit;color:inherit;background:none;border:0;padding:0;cursor:poin
     <button class="btn" id="btnReset">Réinitialiser</button>
   </div>
   <div id="pAdjust" class="pane">
-    <div id="adjHead"><span id="adjName"></span><b id="adjVal"></b></div>
+    <div id="zoneBar" hidden>
+      <button class="chip on" id="zPaint">Peindre</button>
+      <button class="chip" id="zErase">Gommer</button>
+      <input type="range" class="rng" id="zSize" min="3" max="40" step="1" value="14" aria-label="Taille du pinceau">
+      <button class="chip" id="zInv">Inverser</button>
+      <button class="chip" id="zClear">Effacer</button>
+    </div>
+    <div id="adjHead"><button class="chip" id="btnZone">Zone</button><span id="adjName"></span><b id="adjVal"></b></div>
     <div id="dial"><div id="dialTicks"><i id="dialZero"></i></div><b id="dialMark"></b></div>
     <input type="range" class="sr" id="slider" min="-100" max="100" step="1" value="0" tabindex="-1">
     <div class="tools" id="tools"></div>
@@ -262,7 +275,15 @@ const newGeo = () => ({ rot: 0, straighten: 0, vertical: 0, horizontal: 0, crop:
 const clone = o => JSON.parse(JSON.stringify(o));
 const isDefaultSettings = s => !s || (!autoOn(s) && s.filter === 'none' && ADJ_KEYS.every(k => !s.adj[k]));
 const isDefaultGeo = g => !g || (!g.rot && !g.straighten && !g.vertical && !g.horizontal && g.crop === 'orig');
-const isEdited = p => !isDefaultSettings(p.settings) || !isDefaultGeo(p.geo);
+const newLocal = () => Object.fromEntries(ADJ_KEYS.map(k => [k, 0]));
+const hasZone = p => !!p.mask && !!p.local && ADJ_KEYS.some(k => p.local[k]);
+const isEdited = p => !isDefaultSettings(p.settings) || !isDefaultGeo(p.geo) || hasZone(p);
+// zone peinte d'une photo, à passer au moteur de rendu
+function zoneOf(R, p, show) {
+  if (!p.mask || (!show && !hasZone(p))) { R.setMask(null); return null; }
+  R.setMask(p.mask.cv, p.id + ':' + p.mask.ver);
+  return { adj: p.local || {}, inv: p.mask.inv, show };
+}
 
 /* ---------- Analyse « Auto » (par photo) ---------- */
 function analyzeAuto(bmp) {
@@ -387,7 +408,8 @@ function geomFor(srcW, srcH, g) {
   const ok = z => pts.every(([u, v]) => { const [a, b] = map(u, v, z); return a >= -1e-4 && a <= 1 + 1e-4 && b >= -1e-4 && b <= 1 + 1e-4; });
   let zoom = 1;
   if (!ok(1)) { let lo = 1, hi = 1.2; while (!ok(hi) && hi < 8) { lo = hi; hi *= 1.3; } for (let i = 0; i < 24; i++) { const m = (lo + hi) / 2; if (ok(m)) hi = m; else lo = m; } zoom = hi; }
-  return { rot, rw, rh, Aasp, cw, ch, ang, ve, ho, zoom, outAspect: cw / ch,
+  const toSrc = (u, v) => { const [x, y] = map(u, v, zoom); return rot === 1 ? [y, 1 - x] : rot === 2 ? [1 - x, 1 - y] : rot === 3 ? [1 - y, x] : [x, y]; };
+  return { rot, rw, rh, Aasp, cw, ch, ang, ve, ho, zoom, toSrc, outAspect: cw / ch,
            outW: Math.round(cw / Aasp * rw), outH: Math.round(ch * rh) };
 }
 
@@ -401,7 +423,10 @@ in vec2 vUv; out vec4 o;
 uniform sampler2D uTex;
 uniform vec2 uTexel; uniform float uLodDef, uLodNR;
 uniform int uRot; uniform vec2 uCrop; uniform float uAsp, uZoom, uAng, uVe, uHo, uOutAsp;
-uniform float uExp,uBri,uHi,uSh,uCon,uLum,uBlk,uSat,uVib,uWarm,uTint,uSharp,uDef,uNoise,uVig,uMono;
+uniform float gExp,gBri,gHi,gSh,gCon,gLum,gBlk,gSat,gVib,gWarm,gTint,gSharp,gDef,gNoise,gVig,uMono;
+uniform float lExp,lBri,lHi,lSh,lCon,lLum,lBlk,lSat,lVib,lWarm,lTint,lSharp,lDef,lNoise,lVig;
+uniform sampler2D uMask; uniform int uHasMask, uShow; uniform float uInv;
+float uExp,uBri,uHi,uSh,uCon,uLum,uBlk,uSat,uVib,uWarm,uTint,uSharp,uDef,uNoise,uVig;
 uniform int uOrig;
 const vec3 LW = vec3(.2126,.7152,.0722);
 float luma(vec3 c){ return dot(c, LW); }
@@ -421,6 +446,10 @@ void main(){
   vec2 tu = rotUv(ru);
   vec3 src = texture(uTex, tu).rgb;
   if(uOrig==1){ o = vec4(src,1.); return; }
+  // zone peinte : m = 1 dans la zone, 0 ailleurs ; chaque réglage = global + m × réglage de zone
+  float m = 0.;
+  if(uHasMask==1){ m = texture(uMask, tu).a; m = mix(m, 1.-m, uInv); }
+  uExp=gExp+m*lExp; uBri=gBri+m*lBri; uHi=gHi+m*lHi; uSh=gSh+m*lSh; uCon=gCon+m*lCon; uLum=gLum+m*lLum; uBlk=gBlk+m*lBlk; uSat=gSat+m*lSat; uVib=gVib+m*lVib; uWarm=gWarm+m*lWarm; uTint=gTint+m*lTint; uSharp=gSharp+m*lSharp; uDef=gDef+m*lDef; uNoise=gNoise+m*lNoise; uVig=gVig+m*lVig;
   vec3 col = src;
   // réduction du bruit
   if(uNoise>0.){
@@ -474,9 +503,11 @@ void main(){
   vec2 dv = vUv-.5; dv.x *= uOutAsp;
   float rr = length(dv)/length(vec2(uOutAsp,1.)*.5);
   col *= 1.-uVig*.6*smoothstep(.3,1.,rr);
+  if(uShow==1) col = mix(col, vec3(1.,.3,.22), .42*m);
   o = vec4(clamp(col,0.,1.),1.);
 }`;
 
+const SHN = ['Exp', 'Bri', 'Hi', 'Sh', 'Con', 'Lum', 'Blk', 'Sat', 'Vib', 'Warm', 'Tint', 'Sharp', 'Def', 'Noise', 'Vig'];   // noms des réglages dans le shader, même ordre que ADJ_KEYS
 class Renderer {
   constructor(canvas) {
     this.cv = canvas;
@@ -494,6 +525,24 @@ class Renderer {
     for (let i = 0; i < n; i++) { const a = gl.getActiveUniform(pr, i); this.u[a.name] = gl.getUniformLocation(pr, a.name); }
     this.maxTex = gl.getParameter(gl.MAX_TEXTURE_SIZE);
     this.tex = null; this.img = null;
+    // texture du masque (unité 1) : 1 pixel vide par défaut
+    this.maskTex = gl.createTexture(); this.maskKey = null; this.hasMask = false;
+    gl.activeTexture(gl.TEXTURE1); gl.bindTexture(gl.TEXTURE_2D, this.maskTex);
+    gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA, 1, 1, 0, gl.RGBA, gl.UNSIGNED_BYTE, new Uint8Array(4));
+    for (const [k, v] of [[gl.TEXTURE_MIN_FILTER, gl.LINEAR], [gl.TEXTURE_MAG_FILTER, gl.LINEAR], [gl.TEXTURE_WRAP_S, gl.CLAMP_TO_EDGE], [gl.TEXTURE_WRAP_T, gl.CLAMP_TO_EDGE]]) gl.texParameteri(gl.TEXTURE_2D, k, v);
+    gl.activeTexture(gl.TEXTURE0);
+  }
+  setMask(cv, key) {
+    const gl = this.gl;
+    if (!cv) { this.hasMask = false; return; }
+    if (this.maskKey !== key) {
+      gl.activeTexture(gl.TEXTURE1); gl.bindTexture(gl.TEXTURE_2D, this.maskTex);
+      gl.pixelStorei(gl.UNPACK_FLIP_Y_WEBGL, false); gl.pixelStorei(gl.UNPACK_PREMULTIPLY_ALPHA_WEBGL, false);
+      gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA, gl.RGBA, gl.UNSIGNED_BYTE, cv);
+      gl.activeTexture(gl.TEXTURE0);
+      this.maskKey = key;
+    }
+    this.hasMask = true;
   }
   setImage(img) {
     const gl = this.gl;
@@ -511,7 +560,7 @@ class Renderer {
     this.img = img; this.w = img.width; this.h = img.height;
   }
   release() { if (this.tex) this.gl.deleteTexture(this.tex); this.tex = null; this.img = null; }
-  render(e, G, outW, outH, original = false) {
+  render(e, G, outW, outH, original = false, loc = null) {
     const gl = this.gl, u = this.u;
     if (this.cv.width !== outW || this.cv.height !== outH) { this.cv.width = outW; this.cv.height = outH; }
     gl.viewport(0, 0, outW, outH);
@@ -524,13 +573,17 @@ class Renderer {
     gl.uniform1f(u.uZoom, G.zoom); gl.uniform1f(u.uAng, G.ang); gl.uniform1f(u.uVe, G.ve); gl.uniform1f(u.uHo, G.ho);
     gl.uniform1f(u.uOutAsp, G.outAspect);
     gl.uniform1i(u.uOrig, original ? 1 : 0);
-    const f = k => e[k] / 100;
-    gl.uniform1f(u.uExp, e.exposure / 100 * 2);
-    gl.uniform1f(u.uBri, f('brilliance')); gl.uniform1f(u.uHi, f('highlights')); gl.uniform1f(u.uSh, f('shadows'));
-    gl.uniform1f(u.uCon, f('contrast')); gl.uniform1f(u.uLum, f('brightness')); gl.uniform1f(u.uBlk, f('blackpoint'));
-    gl.uniform1f(u.uSat, f('saturation')); gl.uniform1f(u.uVib, f('vibrance')); gl.uniform1f(u.uWarm, f('warmth'));
-    gl.uniform1f(u.uTint, f('tint')); gl.uniform1f(u.uSharp, f('sharpness')); gl.uniform1f(u.uDef, f('definition'));
-    gl.uniform1f(u.uNoise, f('noise')); gl.uniform1f(u.uVig, f('vignette')); gl.uniform1f(u.uMono, e.mono);
+    ADJ_KEYS.forEach((k, i) => {
+      const sc = k === 'exposure' ? 2 : 1;
+      gl.uniform1f(u['g' + SHN[i]], e[k] / 100 * sc);
+      gl.uniform1f(u['l' + SHN[i]], loc ? (loc.adj[k] || 0) / 100 * sc : 0);
+    });
+    gl.uniform1f(u.uMono, e.mono);
+    gl.uniform1i(u.uHasMask, loc && this.hasMask ? 1 : 0);
+    gl.uniform1f(u.uInv, loc && loc.inv ? 1 : 0);
+    gl.uniform1i(u.uShow, loc && loc.show ? 1 : 0);
+    gl.uniform1i(u.uTex, 0); gl.uniform1i(u.uMask, 1);
+    gl.activeTexture(gl.TEXTURE1); gl.bindTexture(gl.TEXTURE_2D, this.maskTex); gl.activeTexture(gl.TEXTURE0);
     gl.bindTexture(gl.TEXTURE_2D, this.tex);
     gl.drawArrays(gl.TRIANGLE_STRIP, 0, 4);
   }
@@ -618,6 +671,9 @@ const MEM = LS.get('done', {});
 let backupIds = null;
 function memSave(p, mode) {
   MEM[p.id] = { t: Date.now(), mode, settings: p.settings, geo: p.geo };
+  if (hasZone(p)) { try { MEM[p.id].zone = { local: p.local, inv: p.mask.inv, w: p.mask.cv.width, h: p.mask.cv.height, png: p.mask.cv.toDataURL('image/png') }; } catch (e) {} }
+  // les zones peintes prennent de la place : on ne garde que celles des 120 dernières photos
+  Object.keys(MEM).filter(k => MEM[k].zone).sort((a, b) => MEM[b].t - MEM[a].t).slice(120).forEach(k => delete MEM[k].zone);
   const ids = Object.keys(MEM);
   if (ids.length > 3000) ids.sort((a, b) => MEM[a].t - MEM[b].t).slice(0, ids.length - 3000).forEach(k => delete MEM[k]);
   LS.set('done', MEM);
@@ -628,6 +684,13 @@ function memApply(p) {
   p.saved = true;
   if (backupIds === null) { try { backupIds = new Set(JSON.parse(A.listBackups()).map(b => b.id)); } catch (e) { backupIds = new Set(); } }
   // on ne reprend les réglages que si l'on peut repartir de l'originale (sinon ils s'appliqueraient deux fois)
+  const zone = () => {
+    const z = m.zone; if (!z) return;
+    const cv = document.createElement('canvas'); cv.width = z.w; cv.height = z.h;
+    p.local = Object.assign(newLocal(), z.local); p.mask = { cv, inv: !!z.inv, ver: 0 };
+    const im = new Image(); im.onload = () => { cv.getContext('2d').drawImage(im, 0, 0); p.mask.ver++; }; im.src = z.png;
+  };
+  if (m.mode === 'copy' || backupIds.has(p.id)) zone();
   if (m.mode === 'copy') { p.settings = normSettings(m.settings); p.geo = m.geo || newGeo(); }
   else if (backupIds.has(p.id)) { p.settings = normSettings(m.settings); p.geo = m.geo || newGeo(); p.useBackup = true; }
 }
@@ -695,7 +758,7 @@ function renderTo(p, bmp, cv, size, o = {}) {
   RT.setImage(bmp);
   const G = geomFor(bmp.width, bmp.height, p.geo);
   let w = G.outAspect >= 1 ? size : Math.round(size * G.outAspect), h = G.outAspect >= 1 ? Math.round(size / G.outAspect) : size;
-  RT.render(effective(p, o), G, Math.max(1, w), Math.max(1, h));
+  RT.render(effective(p, o), G, Math.max(1, w), Math.max(1, h), false, zoneOf(RT, p, false));
   const x = cv.getContext('2d');
   if (o.cover) {
     cv.width = size; cv.height = size;
@@ -724,7 +787,7 @@ async function selectPhoto(i) {
   if (curP() === p && p.preview) { RV.setImage(p.preview); drawView(); }
   if (S.tab === 'pFilters') drawFilterTiles();
 }
-let orig = false, rafPending = false;
+let orig = false, rafPending = false, lastG = null, zoneShow = false;
 function drawView() {
   if (rafPending) return; rafPending = true;
   requestAnimationFrame(() => {
@@ -736,7 +799,8 @@ function drawView() {
     let w = bw, h = w / G.outAspect; if (h > bh) { h = bh; w = h * G.outAspect; }
     const cap = Math.min(1, 2048 / Math.max(w, h));
     w = Math.max(1, Math.round(w * cap)); h = Math.max(1, Math.round(h * cap));
-    RV.render(effective(p), G, w, h, orig);
+    lastG = G;
+    RV.render(effective(p), G, w, h, orig, zoneOf(RV, p, zoneShow));
     const cv = $('view'); cv.style.width = Math.round(w / dpr / cap) + 'px'; cv.style.height = Math.round(h / dpr / cap) + 'px';
     $('badge').hidden = !orig;
   });
@@ -756,6 +820,7 @@ function buildTools() {
     b.innerHTML = `<div class="ring"><span class="ic"><svg viewBox="0 0 24 24">${t.i}</svg></span><span class="num"></span></div><small>${t.n}</small>`;
     b.onclick = () => {
       const p = curP(); if (!p) return;
+      if (t.k === 'auto' && S.zone) return toast("Auto s'applique à toute la photo : quitte le mode Zone pour le régler", 3000);
       if (t.k === 'auto') {
         const s = ensureSettings(p);
         if (S.tool !== 'auto') { S.tool = 'auto'; if (!autoOn(s)) s.auto = 50; }
@@ -785,7 +850,7 @@ function syncControls() {
     const k = b.dataset.k, ring = b.querySelector('.ring');
     b.classList.toggle('on', k === S.tool);
     if (k === 'auto') { b.classList.toggle('active', on); continue; }
-    const v = p ? shownVal(p, s, k) : 0, a = Math.abs(v) * 3.6;
+    const v = !p ? 0 : S.zone ? ((p.local || {})[k] || 0) : shownVal(p, s, k), a = Math.abs(v) * 3.6;
     ring.style.setProperty('--a', a + 'deg');
     ring.style.setProperty('--from', (v < 0 ? 360 - a : 0) + 'deg');
     b.querySelector('.num').textContent = v;
@@ -797,11 +862,13 @@ function syncControls() {
     $('adjName').textContent = 'Auto';
     $('adjVal').textContent = on ? String(autoPos(s)) : 'désactivé';
   } else {
-    const v = p ? shownVal(p, s, S.tool) : 0;
-    sl.min = t.min ?? -100; sl.max = 100; sl.value = v;
-    $('adjName').textContent = t.n;
+    const v = !p ? 0 : S.zone ? ((p.local || {})[S.tool] || 0) : shownVal(p, s, S.tool);
+    sl.min = S.zone ? -100 : (t.min ?? -100); sl.max = 100; sl.value = v;
+    $('adjName').textContent = (S.zone ? 'Zone · ' : '') + t.n;
     $('adjVal').textContent = fmtV(v);
   }
+  $('btnZone').classList.toggle('on', !!S.zone); $('zoneBar').hidden = !S.zone;
+  $('zInv').classList.toggle('on', !!(p && p.mask && p.mask.inv));
   drawDial();
   // filtres
   $('fltAmt').value = s.filterAmt; $('fltVal').textContent = s.filter === 'none' ? '' : s.filterAmt;
@@ -814,13 +881,15 @@ function syncControls() {
 $('slider').oninput = e => {
   const p = curP(); if (!p) return; const s = ensureSettings(p);
   const v = +e.target.value;
-  if (S.tool === 'auto') s.auto = v;                          // fait évoluer tous les autres réglages
+  if (S.zone && S.tool !== 'auto') (p.local ||= newLocal())[S.tool] = v;   // réglage limité à la zone peinte
+  else if (S.tool === 'auto') s.auto = v;                     // fait évoluer tous les autres réglages
   else s.adj[S.tool] = v - autoPart(p, s, S.tool);            // on garde l'écart par rapport à l'Auto
   syncControls(); changed();
 };
 $('slider').ondblclick = () => {
   const p = curP(); if (!p) return; const s = ensureSettings(p);
-  if (S.tool === 'auto') s.auto = 50; else s.adj[S.tool] = 0;   // retour à la valeur conseillée
+  if (S.zone && S.tool !== 'auto') (p.local ||= newLocal())[S.tool] = 0;
+  else if (S.tool === 'auto') s.auto = 50; else s.adj[S.tool] = 0;   // retour à la valeur conseillée
   syncControls(); changed();
 };
 /* molette : on fait glisser la règle sous le repère, comme sur l'iPhone */
@@ -885,6 +954,57 @@ for (const b of $('tabs').children) b.onclick = () => {
   resetZ(); drawView();
 };
 
+/* --- zone peinte : pinceau, gomme, inversion --- */
+let zErase = false;
+function ensureMask(p) {
+  if (!p.mask) {
+    const k = 768 / Math.max(RV.w, RV.h), cv = document.createElement('canvas');
+    cv.width = Math.max(1, Math.round(RV.w * k)); cv.height = Math.max(1, Math.round(RV.h * k));
+    p.mask = { cv, inv: false, ver: 0 };
+  }
+  p.local ||= newLocal();
+  return p.mask;
+}
+// position du doigt -> position dans la photo d'origine (suit zoom, recadrage, redressement)
+function touchToSrc(x, y) {
+  const r = $('view').getBoundingClientRect();
+  return lastG.toSrc((x - r.left) / r.width, (y - r.top) / r.height);
+}
+function brushStamp(p, x, y) {
+  const m = ensureMask(p), cv = m.cv, c = cv.getContext('2d');
+  const [sx, sy] = touchToSrc(x, y);
+  const rpx = $('stage').clientWidth * (+$('zSize').value) / 200;          // rayon à l'écran
+  const [ex, ey] = touchToSrc(x + rpx, y);
+  const R = Math.max(2, Math.hypot((ex - sx) * cv.width, (ey - sy) * cv.height));
+  const cx = sx * cv.width, cy = sy * cv.height;
+  const g = c.createRadialGradient(cx, cy, R * 0.45, cx, cy, R);
+  g.addColorStop(0, 'rgba(255,255,255,1)'); g.addColorStop(1, 'rgba(255,255,255,0)');
+  c.globalCompositeOperation = zErase ? 'destination-out' : 'source-over';
+  c.fillStyle = g; c.beginPath(); c.arc(cx, cy, R, 0, 7); c.fill();
+  m.ver++;
+}
+function brushLine(p, a, b) {
+  const step = Math.max(2, $('stage').clientWidth * (+$('zSize').value) / 200 / 3);
+  const n = Math.max(1, Math.ceil(Math.hypot(b.x - a.x, b.y - a.y) / step));
+  for (let i = 1; i <= n; i++) brushStamp(p, a.x + (b.x - a.x) * i / n, a.y + (b.y - a.y) * i / n);
+}
+let ringT;
+function showBrushRing() {
+  const r = $('brushRing'), d = $('stage').clientWidth * (+$('zSize').value) / 100;
+  r.style.width = r.style.height = d + 'px'; r.hidden = false;
+  clearTimeout(ringT); ringT = setTimeout(() => r.hidden = true, 900);
+}
+$('btnZone').onclick = () => {
+  S.zone = !S.zone;
+  if (S.zone) { if (S.tool === 'auto') S.tool = 'exposure'; const p = curP(); if (p && !p.mask) toast("Peins sur la photo la zone à retoucher, puis règle les curseurs", 3500); }
+  syncControls(); drawView();
+};
+$('zPaint').onclick = () => { zErase = false; $('zPaint').classList.add('on'); $('zErase').classList.remove('on'); };
+$('zErase').onclick = () => { zErase = true; $('zErase').classList.add('on'); $('zPaint').classList.remove('on'); };
+$('zSize').oninput = showBrushRing;
+$('zInv').onclick = () => { const p = curP(); if (!p) return; const m = ensureMask(p); m.inv = !m.inv; syncControls(); zoneShow = true; drawView(); setTimeout(() => { zoneShow = false; changed(); }, 700); };
+$('zClear').onclick = () => { const p = curP(); if (!p) return; p.mask = null; p.local = null; syncControls(); changed(); toast('Zone effacée'); };
+
 /* --- gestes sur la photo : pincer = zoom, double-tap = zoom, glisser = déplacer, appui long = original --- */
 const stage = $('stage');
 const Z = { s: 1, x: 0, y: 0 };
@@ -898,19 +1018,27 @@ function resetZ() { Z.s = 1; Z.x = 0; Z.y = 0; applyZ(); }
 (() => {
   const pts = new Map(); let holdT = null, lastTap = 0, st = null, pinch = null;
   const dist = () => { const [a, b] = [...pts.values()]; return Math.hypot(a.x - b.x, a.y - b.y) || 1; };
+  const mid = () => { const [a, b] = [...pts.values()]; return { x: (a.x + b.x) / 2, y: (a.y + b.y) / 2 }; };
   const stopHold = () => { clearTimeout(holdT); holdT = null; if (orig) { orig = false; drawView(); return true; } return false; };
   stage.addEventListener('pointerdown', e => {
     stage.setPointerCapture(e.pointerId);
     pts.set(e.pointerId, { x: e.clientX, y: e.clientY });
     if (pts.size === 1) {
       st = { x: e.clientX, y: e.clientY, zx: Z.x, zy: Z.y, moved: false };
-      holdT = setTimeout(() => { orig = true; drawView(); }, 320);
-    } else if (pts.size === 2) { stopHold(); pinch = { d: dist(), s: Z.s }; if (st) st.moved = true; }
+      if (S.zone && S.tab === 'pAdjust' && curP() && lastG) {           // un doigt = pinceau
+        st.paint = true; st.last = { x: e.clientX, y: e.clientY };
+        brushStamp(curP(), e.clientX, e.clientY); zoneShow = true; drawView();
+      } else holdT = setTimeout(() => { orig = true; drawView(); }, 320);
+    } else if (pts.size === 2) {
+      stopHold(); if (st && st.paint) { st.paint = false; zoneShow = false; drawView(); }
+      pinch = { d: dist(), s: Z.s, m: mid(), zx: Z.x, zy: Z.y }; if (st) st.moved = true;
+    }
   });
   stage.addEventListener('pointermove', e => {
     if (!pts.has(e.pointerId)) return;
     pts.set(e.pointerId, { x: e.clientX, y: e.clientY });
-    if (pts.size === 2 && pinch) { Z.s = clamp(pinch.s * dist() / pinch.d, 1, 6); applyZ(); }
+    if (pts.size === 2 && pinch) { const c = mid(); Z.s = clamp(pinch.s * dist() / pinch.d, 1, 6); Z.x = pinch.zx + c.x - pinch.m.x; Z.y = pinch.zy + c.y - pinch.m.y; applyZ(); }
+    else if (pts.size === 1 && st && st.paint) { const q = { x: e.clientX, y: e.clientY }; brushLine(curP(), st.last, q); st.last = q; st.moved = true; drawView(); }
     else if (pts.size === 1 && st) {
       const dx = e.clientX - st.x, dy = e.clientY - st.y;
       if (Math.hypot(dx, dy) > 8) { st.moved = true; clearTimeout(holdT); }
@@ -921,6 +1049,7 @@ function resetZ() { Z.s = 1; Z.x = 0; Z.y = 0; applyZ(); }
     if (!pts.has(e.pointerId)) return;
     pts.delete(e.pointerId);
     const wasOrig = stopHold();
+    if (st && st.paint && pts.size === 0) { st = null; zoneShow = false; changed(); return; }
     if (pts.size === 1) { const q = [...pts.values()][0]; st = { x: q.x, y: q.y, zx: Z.x, zy: Z.y, moved: true }; pinch = null; return; }
     if (pts.size === 0 && st && !st.moved && !wasOrig && e.type === 'pointerup') {
       const now = Date.now();
@@ -946,7 +1075,7 @@ $('btnApplyAll').onclick = () => {
 };
 $('btnCopy').onclick = () => { const p = curP(); if (!p) return; S.clip = clone(p.settings || newSettings()); toast('Réglage copié'); };
 $('btnPaste').onclick = () => { const p = curP(); if (!p) return; if (!S.clip) return toast("Rien à coller : appuie d'abord sur Copier"); p.settings = clone(S.clip); syncControls(); changed(); toast('Réglage collé'); };
-$('btnReset').onclick = () => { const p = curP(); if (!p) return; p.settings = null; p.geo = newGeo(); syncControls(); changed(); toast('Photo réinitialisée'); };
+$('btnReset').onclick = () => { const p = curP(); if (!p) return; p.settings = null; p.geo = newGeo(); p.mask = null; p.local = null; syncControls(); changed(); toast('Photo réinitialisée'); };
 $('btnPreset').onclick = () => {
   const has = !!LS.get('preset', null);
   sheet(`<h2>Mon réglage</h2><p>Garde ton réglage préféré pour le réutiliser sur tes prochains biens.</p>
@@ -1002,7 +1131,7 @@ async function renderFull(p) {
   if (autoOn(p.settings) && !p.auto) p.auto = analyzeAuto(p.thumb || bmp);
   RE.setImage(bmp);
   const G = geomFor(bmp.width, bmp.height, p.geo);
-  RE.render(effective(p), G, G.outW, G.outH);
+  RE.render(effective(p), G, G.outW, G.outH, false, zoneOf(RE, p, false));
   const out = await new Promise(r => RE.cv.toBlob(r, 'image/jpeg', 0.95));
   RE.release(); bmp.close();
   RE.cv.width = 1; RE.cv.height = 1;
