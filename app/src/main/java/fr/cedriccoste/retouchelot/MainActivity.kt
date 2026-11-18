@@ -125,6 +125,14 @@ class MainActivity : ComponentActivity() {
         else -> granted(Manifest.permission.READ_EXTERNAL_STORAGE)
     }
 
+    /** L'accès aux vidéos est une autorisation distincte de celle des photos (Android 13+). */
+    private fun hasVideoPermission(): Boolean = when {
+        Build.VERSION.SDK_INT >= 34 ->
+            granted(Manifest.permission.READ_MEDIA_VIDEO) || granted(Manifest.permission.READ_MEDIA_VISUAL_USER_SELECTED)
+        Build.VERSION.SDK_INT >= 33 -> granted(Manifest.permission.READ_MEDIA_VIDEO)
+        else -> granted(Manifest.permission.READ_EXTERNAL_STORAGE)
+    }
+
     private fun permissionsToRequest(): Array<String> {
         val l = mutableListOf<String>()
         when {
@@ -532,6 +540,14 @@ class MainActivity : ComponentActivity() {
     private inner class Bridge {
         @JavascriptInterface
         fun hasPermission(): Boolean = hasMediaPermission()
+
+        @JavascriptInterface
+        fun hasVideoPermission(): Boolean = this@MainActivity.hasVideoPermission()
+
+        @JavascriptInterface
+        fun openSettings() = runOnUiThread {
+            startActivity(Intent(Settings.ACTION_APPLICATION_DETAILS_SETTINGS, Uri.parse("package:$packageName")))
+        }
 
         @JavascriptInterface
         fun requestPermission() = runOnUiThread { permLauncher.launch(permissionsToRequest()) }

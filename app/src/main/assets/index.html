@@ -754,6 +754,7 @@ function renderGallery() {
     }
     box.appendChild(h); box.appendChild(g);
   }
+  if (A && S.kind === 'video' && S.vloaded && !S.vorder.length) box.innerHTML = '<div class="empty">Aucune vidéo trouvée sur le téléphone.</div>';
   $('moreBox').hidden = !(S.kind === 'video' ? S.vhasMore : S.hasMore);
   updSelBar();
 }
@@ -811,12 +812,28 @@ function loadVideoPage() {
   S.voffset += list.length; S.vhasMore = list.length === S.pageSize; S.vloaded = true;
   renderGallery();
 }
+// l'accès aux vidéos se demande à part : sans lui, Android renvoie une liste vide
+let permAsked = false;
+function showPerm(video) {
+  $('permBox').hidden = false;
+  $('permBox').querySelector('p').textContent = video
+    ? (permAsked ? "Android n'a pas accordé l'accès aux vidéos. Ouvre les réglages de Halo › Autorisations › Photos et vidéos, puis choisis « Toujours tout autoriser »." : "Halo a besoin d'accéder à tes vidéos pour les afficher et les retoucher.")
+    : "L'appli a besoin d'accéder à tes photos pour les retoucher, et à leur emplacement pour le conserver.";
+  $('btnPerm').textContent = video && permAsked ? 'Ouvrir les réglages' : "Autoriser l'accès";
+}
+function openVideoTab() {
+  if (!A.hasVideoPermission()) { renderGallery(); return showPerm(true); }
+  $('permBox').hidden = true;
+  if (!S.vloaded) loadVideoPage(); else renderGallery();
+}
+document.addEventListener('visibilitychange', () => { if (A && !document.hidden && S.kind === 'video' && !S.vloaded && A.hasVideoPermission()) openVideoTab(); });
 for (const b of $('kinds').children) b.onclick = () => {
   if (S.kind === b.dataset.kind) return;
   S.kind = b.dataset.kind; S.selected.clear(); S.selMode = false;
   for (const x of $('kinds').children) x.classList.toggle('on', x === b);
   if (!A) { $('fileInput').accept = S.kind + '/*'; $('webPick').querySelector('p').textContent = S.kind === 'video' ? 'Choisis une vidéo.' : "Choisis les photos d'un même bien."; }
-  if (A && S.kind === 'video' && !S.vloaded && A.hasPermission()) loadVideoPage(); else renderGallery();
+  $('permBox').hidden = true;
+  if (A && S.kind === 'video') openVideoTab(); else { if (A && !A.hasPermission()) showPerm(false); renderGallery(); }
   $('gScroll').scrollTop = 0;
 };
 function initGallery() {
@@ -828,8 +845,10 @@ function initGallery() {
     $('webPick').hidden = false;
   }
 }
-window.onPermissions = granted => { if (granted) { $('permBox').hidden = true; loadAndroidPage(); } else toast("Sans l'accès aux photos, l'appli ne peut rien faire."); };
-$('btnPerm').onclick = () => A.requestPermission();
+window.onPermissions = granted => {
+  if (S.kind === 'video') { permAsked = true; return openVideoTab(); }
+  if (granted) { $('permBox').hidden = true; loadAndroidPage(); } else toast("Sans l'accès aux photos, l'appli ne peut rien faire."); };
+$('btnPerm').onclick = () => { if (S.kind === 'video' && permAsked) A.openSettings(); else A.requestPermission(); };
 $('btnMore').onclick = () => S.kind === 'video' ? loadVideoPage() : loadAndroidPage();
 $('btnClearSel').onclick = () => { S.selected.clear(); S.selMode = false; renderGallery(); };
 $('fileInput').onchange = e => {
