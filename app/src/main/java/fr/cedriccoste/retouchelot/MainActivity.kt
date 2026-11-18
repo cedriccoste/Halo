@@ -127,8 +127,7 @@ class MainActivity : ComponentActivity() {
 
     /** L'accès aux vidéos est une autorisation distincte de celle des photos (Android 13+). */
     private fun hasVideoPermission(): Boolean = when {
-        Build.VERSION.SDK_INT >= 34 ->
-            granted(Manifest.permission.READ_MEDIA_VIDEO) || granted(Manifest.permission.READ_MEDIA_VISUAL_USER_SELECTED)
+        // uniquement READ_MEDIA_VIDEO : l'accès complet aux photos ne donne pas les vidéos
         Build.VERSION.SDK_INT >= 33 -> granted(Manifest.permission.READ_MEDIA_VIDEO)
         else -> granted(Manifest.permission.READ_EXTERNAL_STORAGE)
     }
@@ -595,7 +594,9 @@ class MainActivity : ComponentActivity() {
 
         @JavascriptInterface
         fun listVideos(offset: Int, limit: Int): String =
-            try { listVideosJson(offset, limit) } catch (e: Exception) { "[]" }
+            try { listVideosJson(offset, limit) } catch (e: Exception) {
+                JSONObject().put("error", e.javaClass.simpleName + " : " + (e.message ?: "")).toString()
+            }
 
         @JavascriptInterface
         fun startVideoJobs(json: String): String =

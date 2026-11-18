@@ -754,7 +754,7 @@ function renderGallery() {
     }
     box.appendChild(h); box.appendChild(g);
   }
-  if (A && S.kind === 'video' && S.vloaded && !S.vorder.length) box.innerHTML = '<div class="empty">Aucune vidéo trouvée sur le téléphone.</div>';
+  if (A && S.kind === 'video' && S.vloaded && !S.vorder.length) box.innerHTML = '<div class="empty">' + (S.verr ? 'Erreur de lecture des vidéos :<br>' + S.verr.replace(/</g, '&lt;') : 'Aucune vidéo trouvée sur le téléphone.') + '</div>';
   $('moreBox').hidden = !(S.kind === 'video' ? S.vhasMore : S.hasMore);
   updSelBar();
 }
@@ -805,7 +805,9 @@ function loadAndroidPage() {
 }
 function loadVideoPage() {
   let list = [];
-  try { list = JSON.parse(A.listVideos(S.voffset, S.pageSize)); } catch (e) { toast('Erreur de lecture des vidéos'); }
+  S.verr = '';
+  try { list = JSON.parse(A.listVideos(S.voffset, S.pageSize)); } catch (e) { S.verr = String(e); }
+  if (!Array.isArray(list)) { S.verr = (list && list.error) || 'réponse inattendue'; list = []; }
   for (const it of list) {
     if (!S.all.has(it.id)) { const v = { id: it.id, kind: 'video', name: it.name, date: it.date, duration: it.duration, settings: null, geo: newGeo() }; memApply(v); S.all.set(it.id, v); S.vorder.push(it.id); }
   }
@@ -822,7 +824,11 @@ function showPerm(video) {
   $('btnPerm').textContent = video && permAsked ? 'Ouvrir les réglages' : "Autoriser l'accès";
 }
 function openVideoTab() {
-  if (!A.hasVideoPermission()) { renderGallery(); return showPerm(true); }
+  if (!A.hasVideoPermission()) {
+    renderGallery(); showPerm(true);
+    if (!permAsked) A.requestPermission();        // première fois : on demande tout de suite
+    return;
+  }
   $('permBox').hidden = true;
   if (!S.vloaded) loadVideoPage(); else renderGallery();
 }
