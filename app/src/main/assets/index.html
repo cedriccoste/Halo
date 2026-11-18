@@ -602,7 +602,7 @@ class Renderer {
     }
     this.hasMask = true;
   }
-  setImage(img) {
+  setImage(img, mip = true) {
     const gl = this.gl;
     if (this.img === img && this.tex) return;
     if (this.tex) gl.deleteTexture(this.tex);
@@ -610,8 +610,8 @@ class Renderer {
     gl.pixelStorei(gl.UNPACK_FLIP_Y_WEBGL, false);
     gl.pixelStorei(gl.UNPACK_PREMULTIPLY_ALPHA_WEBGL, false);
     gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA, gl.RGBA, gl.UNSIGNED_BYTE, img);
-    gl.generateMipmap(gl.TEXTURE_2D);
-    gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.LINEAR_MIPMAP_LINEAR);
+    if (mip) gl.generateMipmap(gl.TEXTURE_2D);       // inutile (et coûteux en pleine résolution) sans Définition ni Bruit
+    gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, mip ? gl.LINEAR_MIPMAP_LINEAR : gl.LINEAR);
     gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, gl.LINEAR);
     gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_S, gl.CLAMP_TO_EDGE);
     gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_T, gl.CLAMP_TO_EDGE);
@@ -1339,18 +1339,26 @@ function askSave(todo, done) {
 // comme sur l'iPhone : une fois la photo enregistrée, on revient aux photos
 $('btnSave').onclick = () => askSave(S.batch.filter(isEdited), ok => { if (ok && S.batch.length === 1) closeEditor(); });
 
-async function renderFull(p) {
-  const blob = await sourceBlob(p);
-  const maxSide = Math.min(RE.maxTex, 8192);
-  const bmp = await decode(blob, maxSide);
+// Pleine résolution, en trois temps pour pouvoir les faire se chevaucher d'une photo à l'autre :
+// 1) décodage  2) rendu GPU (immédiat)  3) encodage JPEG (en tâche de fond)
+function startDecode(p) {
+  const pr = (async () => { const blob = await sourceBlob(p); return { blob, bmp: await decode(blob, Math.min(RE.maxTex, 8192)) }; })();
+  pr.catch(() => {});
+  return pr;
+}
+function renderDecoded(p, bmp) {
   if (autoOn(p.settings) && !p.auto) p.auto = analyzeAuto(p.thumb || bmp);
-  RE.setImage(bmp);
+  const e = effective(p), z = hasZone(p) ? p.local : {};
+  RE.setImage(bmp, !!(e.definition || e.noise || z.definition || z.noise));
   const G = geomFor(bmp.width, bmp.height, p.geo);
-  RE.render(effective(p), G, G.outW, G.outH, false, zoneOf(RE, p, false));
-  const out = await new Promise(r => RE.cv.toBlob(r, 'image/jpeg', 0.95));
+  RE.render(e, G, G.outW, G.outH, false, zoneOf(RE, p, false));
+  const out = new Promise((res, rej) => RE.cv.toBlob(b => b ? res(b) : rej(new Error('encodage impossible')), 'image/jpeg', 0.95));
   RE.release(); bmp.close();
-  RE.cv.width = 1; RE.cv.height = 1;
-  return { out, srcBlob: blob };
+  return out;
+}
+async function renderFull(p) {
+  const { blob, bmp } = await startDecode(p);
+  return { out: await renderDecoded(p, bmp), srcBlob: blob };
 }
 const blobToB64 = b => new Promise((res, rej) => { const fr = new FileReader(); fr.onload = () => res(String(fr.result).split(',')[1]); fr.onerror = rej; fr.readAsDataURL(b); });
 
@@ -1398,6 +1406,39 @@ function pollVideo() {
 $('busyBg').onclick = () => { vOverlay = false; busy(false); $('vjob').hidden = false; toast('Le calcul continue. Tu peux quitter Halo : suis-le dans les notifications.', 4000); };
 $('vjob').onclick = () => { vOverlay = true; pollVideo(); };
 
+/* ---------- Écriture d'une photo retouchée ---------- */
+const binWait = new Map(); let binBroken = false;
+if (window.HaloBin) HaloBin.onmessage = e => { const m = String(e.data), k = m.indexOf('|'), id = m.slice(0, k), r = binWait.get(id); binWait.delete(id); if (r) r(m.slice(k + 1)); };
+// envoi à Android : octets bruts si possible (rapide), sinon ancien envoi en texte
+async function nativeSave(p, blob, mode) {
+  if (window.HaloBin && !binBroken && A.binSupported && A.binSupported()) {
+    try {
+      const buf = await blob.arrayBuffer();
+      return await new Promise((res, rej) => {
+        const t = setTimeout(() => { binWait.delete(p.id); rej(new Error('délai')); }, 45000);
+        binWait.set(p.id, r => { clearTimeout(t); res(r); });
+        A.beginSave(p.id, mode); HaloBin.postMessage(buf);
+      });
+    } catch (e) { console.warn('transfert rapide indisponible', e); binBroken = true; try { A.resetBin(); } catch (x) {} }
+  }
+  return A.saveImage(p.id, await blobToB64(blob), mode);
+}
+async function storeImage(p, out, srcBlob, mode) {
+  if (A) {
+    const r = await nativeSave(p, out, mode);
+    if (!String(r).startsWith('ok')) throw new Error(String(r).replace(/^err:/, ''));
+    if (mode === 'replace' && r === 'ok') { p.useBackup = true; p.saved = true; p.v = Date.now(); memSave(p, 'replace'); if (backupIds) backupIds.add(p.id); }
+    if (r === 'ok:copy') { p.saved = true; memSave(p, 'copy'); }
+  } else {
+    const withExif = await transplantExif(srcBlob, out);
+    const a = document.createElement('a'); a.href = URL.createObjectURL(withExif);
+    a.download = p.name.replace(/\.(heic|heif|png|webp)$/i, '.jpg'); document.body.appendChild(a); a.click(); a.remove();
+    setTimeout(() => URL.revokeObjectURL(a.href), 4000);
+    p.saved = true;
+  }
+  p.savedSig = sig(p);
+}
+
 async function saveAll(list, mode) {
   if (isVid(list[0])) return saveVideos(list, mode);
   if (A && mode === 'replace') {
@@ -1405,31 +1446,29 @@ async function saveAll(list, mode) {
     const ok = await askWrite(list.map(p => p.id));
     if (!ok) { busy(false); toast('Enregistrement annulé (autorisation refusée)'); return false; }
   }
-  const errors = [];
+  const errors = [], writes = [], t0 = performance.now();
+  let done = 0, nextDec = null;
+  const fail = (p, e) => { console.error(e); errors.push(p.name + ' : ' + (e.message || e)); };
+  const show = () => busy(true, `Enregistrement ${Math.min(done + 1, list.length)} / ${list.length}`, done / list.length);
   for (let i = 0; i < list.length; i++) {
     const p = list[i];
-    busy(true, `Enregistrement ${i + 1} / ${list.length}`, i / list.length, p.name);
-    await tick();
+    show(); await tick();
     try {
-      const { out, srcBlob } = await renderFull(p);
-      if (A) {
-        const r = A.saveImage(p.id, await blobToB64(out), mode);
-        if (!String(r).startsWith('ok')) throw new Error(String(r).replace(/^err:/, ''));
-        if (mode === 'replace' && r === 'ok') { p.useBackup = true; p.saved = true; p.v = Date.now(); memSave(p, 'replace'); if (backupIds) backupIds.add(p.id); }
-        if (r === 'ok:copy') { p.saved = true; memSave(p, 'copy'); }
-      } else {
-        const withExif = await transplantExif(srcBlob, out);
-        const a = document.createElement('a'); a.href = URL.createObjectURL(withExif);
-        a.download = p.name.replace(/\.(heic|heif|png|webp)$/i, '.jpg'); document.body.appendChild(a); a.click(); a.remove();
-        setTimeout(() => URL.revokeObjectURL(a.href), 4000);
-        p.saved = true;
-      }
-      p.savedSig = sig(p);
-    } catch (e) { console.error(e); errors.push(p.name + ' : ' + (e.message || e)); }
+      const d = nextDec || startDecode(p); nextDec = null;
+      const dec = await d;
+      const blobP = renderDecoded(p, dec.bmp);
+      if (i + 1 < list.length) nextDec = startDecode(list[i + 1]);      // la suivante se décode pendant l'encodage
+      const out = await blobP;
+      const w = storeImage(p, out, dec.blob, mode).catch(e => fail(p, e)).then(() => { done++; show(); });
+      writes.push(w);
+      if (writes.length >= 2) await writes[writes.length - 2];          // au plus deux écritures en attente
+    } catch (e) { fail(p, e); done++; }
   }
+  await Promise.all(writes);
   busy(false);
+  const secs = Math.round((performance.now() - t0) / 100) / 10;
   if (errors.length) sheet(`<h2>${list.length - errors.length} enregistrée(s), ${errors.length} erreur(s)</h2><p>${errors.map(x => x.replace(/</g, '&lt;')).join('<br>')}</p><div class="srow"><button class="btn primary" onclick="closeSheet()">OK</button></div>`);
-  else toast(`${list.length} photo${list.length > 1 ? 's' : ''} enregistrée${list.length > 1 ? 's' : ''} ✓`);
+  else toast(`${list.length} photo${list.length > 1 ? 's' : ''} enregistrée${list.length > 1 ? 's' : ''} en ${String(secs).replace('.', ',')} s ✓`, 3500);
   return !errors.length;
 }
 

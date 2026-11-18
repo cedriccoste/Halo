@@ -30,7 +30,10 @@ import androidx.activity.result.contract.ActivityResultContracts
 import androidx.core.content.ContextCompat
 import androidx.core.content.FileProvider
 import androidx.exifinterface.media.ExifInterface
+import androidx.webkit.WebMessageCompat
 import androidx.webkit.WebViewAssetLoader
+import androidx.webkit.WebViewCompat
+import androidx.webkit.WebViewFeature
 import org.json.JSONArray
 import java.io.FileInputStream
 import org.json.JSONObject
@@ -55,6 +58,10 @@ class MainActivity : ComponentActivity() {
 
     private lateinit var web: WebView
     private val backupDays = 30L
+
+    // transfert rapide des photos retouchées (octets bruts, sans passer par du texte)
+    private var binOk = false
+    private val pendingBin = java.util.concurrent.ConcurrentLinkedQueue<Pair<String, String>>()
 
     private val permLauncher =
         registerForActivityResult(ActivityResultContracts.RequestMultiplePermissions()) {
@@ -100,6 +107,29 @@ class MainActivity : ComponentActivity() {
             }
         }
         web.addJavascriptInterface(Bridge(), "Android")
+        if (WebViewFeature.isFeatureSupported(WebViewFeature.WEB_MESSAGE_LISTENER) &&
+            WebViewFeature.isFeatureSupported(WebViewFeature.WEB_MESSAGE_ARRAY_BUFFER)
+        ) {
+            try {
+                WebViewCompat.addWebMessageListener(
+                    web, "HaloBin", setOf("https://appassets.androidplatform.net")
+                ) { _, message, _, _, reply ->
+                    val meta = pendingBin.poll()
+                    if (meta == null || message.type != WebMessageCompat.TYPE_ARRAY_BUFFER) {
+                        reply.postMessage((meta?.first ?: "") + "|err:transfert")
+                    } else {
+                        val bytes = message.arrayBuffer
+                        // l'écriture se fait hors du fil de l'interface : l'éditeur prépare déjà la photo suivante
+                        Thread {
+                            val r = try { doSaveBytes(meta.first, bytes, meta.second) }
+                                    catch (e: Exception) { "err:" + (e.message ?: e.javaClass.simpleName) }
+                            runOnUiThread { try { reply.postMessage(meta.first + "|" + r) } catch (_: Exception) { } }
+                        }.start()
+                    }
+                }
+                binOk = true
+            } catch (_: Exception) { binOk = false }
+        }
         web.loadUrl("https://appassets.androidplatform.net/assets/index.html")
 
         onBackPressedDispatcher.addCallback(this, object : OnBackPressedCallback(true) {
@@ -353,11 +383,13 @@ class MainActivity : ComponentActivity() {
     // ---------------------------------------------------------------- enregistrement
 
     /** @return "ok" (remplacée), "ok:copy" (copie créée) ; lève une exception en cas d'échec */
-    private fun doSave(id: String, b64: String, mode: String): String {
+    private fun doSave(id: String, b64: String, mode: String): String =
+        doSaveBytes(id, Base64.decode(b64, Base64.DEFAULT), mode)
+
+    private fun doSaveBytes(id: String, bytes: ByteArray, mode: String): String {
         val uri = uriFor(id)
         val name = queryString(uri, MediaStore.Images.Media.DISPLAY_NAME) ?: "photo_$id.jpg"
         val mime = queryString(uri, MediaStore.Images.Media.MIME_TYPE) ?: "image/jpeg"
-        val bytes = Base64.decode(b64, Base64.DEFAULT)
         val original = ensureBackup(id, uri, name)
         val tmp = File(cacheDir, "out_$id.jpg")
         tmp.writeBytes(bytes)
@@ -573,6 +605,16 @@ class MainActivity : ComponentActivity() {
         @JavascriptInterface
         fun saveImage(id: String, b64: String, mode: String): String =
             try { doSave(id, b64, mode) } catch (e: Exception) { "err:" + (e.message ?: e.javaClass.simpleName) }
+
+        @JavascriptInterface
+        fun binSupported(): Boolean = binOk
+
+        /** Annonce la photo dont les octets vont arriver par HaloBin.postMessage. */
+        @JavascriptInterface
+        fun beginSave(id: String, mode: String) { pendingBin.add(Pair(id, mode)) }
+
+        @JavascriptInterface
+        fun resetBin() { pendingBin.clear() }
 
         @JavascriptInterface
         fun listBackups(): String {
