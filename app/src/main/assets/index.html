@@ -14,7 +14,7 @@ button{font:inherit;color:inherit;background:none;border:0;padding:0;cursor:poin
 .bar{display:flex;align-items:center;gap:10px;padding:10px 16px;min-height:56px;flex:none}
 .bar h1{font-size:26px;font-weight:650;letter-spacing:-.02em;margin:0;flex:1;display:flex;align-items:center;gap:10px}
 .halo{width:22px;height:22px;border-radius:50%;flex:none;background:radial-gradient(circle,transparent 52%,var(--acc2) 56%,var(--acc) 68%,transparent 72%);filter:drop-shadow(0 0 6px rgba(255,207,107,.7))}
-.bar .sp{flex:1;text-align:center;color:var(--mut);font-size:14px;font-variant-numeric:tabular-nums}
+.bar .sp{flex:1;min-width:0;white-space:nowrap;overflow:hidden;text-align:center;color:var(--mut);font-size:14px;font-variant-numeric:tabular-nums}
 .btn{padding:9px 16px;border-radius:999px;background:var(--s2);font-weight:550;white-space:nowrap;transition:transform .12s,opacity .12s}
 .btn:active{transform:scale(.96)}
 .btn.primary{background:var(--acc);color:#1a1300;font-weight:650}
@@ -105,6 +105,12 @@ button{font:inherit;color:inherit;background:none;border:0;padding:0;cursor:poin
 #btnFs{padding:8px 10px!important;display:grid;place-items:center}
 #btnFs svg,#btnFsExit svg{width:20px;height:20px;fill:none;stroke:currentColor;stroke-width:1.8;stroke-linecap:round;stroke-linejoin:round;display:block}
 #btnFsExit{position:absolute;right:12px;top:calc(12px + env(safe-area-inset-top));z-index:7;width:40px;height:40px;border-radius:50%;display:grid;place-items:center;background:rgba(20,20,24,.45);backdrop-filter:blur(14px);-webkit-backdrop-filter:blur(14px);color:#fff}
+#histBtns{position:absolute;z-index:7;top:9px;left:116px;display:flex;gap:6px}
+#histBtns button{width:38px;height:38px;border-radius:50%;display:grid;place-items:center;background:rgba(30,30,34,.55);backdrop-filter:blur(14px);-webkit-backdrop-filter:blur(14px);color:#fff;transition:opacity .15s}
+#histBtns button:disabled{opacity:.3}
+#histBtns svg{width:20px;height:20px;fill:none;stroke:currentColor;stroke-width:1.9;stroke-linecap:round;stroke-linejoin:round;display:block}
+#editor>.bar #btnBack{margin-right:86px}
+.fs #histBtns{left:auto;right:62px;top:calc(13px + env(safe-area-inset-top))}
 /* plein écran : la photo prend tout l'écran, les réglages flottent par-dessus */
 .fs>.bar,.fs #tabs,.fs:not(.isvid) #row{display:none}
 .fs.isvid #row{position:absolute;left:0;right:60px;top:calc(8px + env(safe-area-inset-top));z-index:6}
@@ -222,6 +228,10 @@ button{font:inherit;color:inherit;background:none;border:0;padding:0;cursor:poin
     <button class="btn primary" id="btnSave">Enregistrer</button>
   </header>
   <div id="stage"><canvas id="view"></canvas><div id="badge" hidden>Original</div><div id="brushRing" hidden></div><video id="vid" playsinline preload="auto"></video></div>
+  <div id="histBtns">
+    <button id="btnUndo" aria-label="Annuler la dernière action" disabled><svg viewBox="0 0 24 24"><path d="M8.5 6 4 10.5 8.5 15"/><path d="M4.5 10.5H14a5 5 0 0 1 0 10h-3"/></svg></button>
+    <button id="btnRedo" aria-label="Refaire" disabled><svg viewBox="0 0 24 24"><path d="M15.5 6 20 10.5 15.5 15"/><path d="M19.5 10.5H10a5 5 0 0 0 0 10h3"/></svg></button>
+  </div>
   <button id="btnFsExit" aria-label="Quitter le plein écran" hidden><svg viewBox="0 0 24 24"><path d="M9 4v5H4M15 4v5h5M9 20v-5H4M15 20v-5h5"/></svg></button>
   <div id="row">
     <div id="strip"></div>
@@ -961,6 +971,7 @@ async function openEditor(list) {
 function closeEditor() {
   $('editor').hidden = true; $('gallery').hidden = false; $('editor').classList.remove('fs', 'showtools'); $('btnFsExit').hidden = true;
   try { VID.pause(); VID.removeAttribute('src'); VID.load(); } catch (e) {}
+  clearTimeout(histT); for (const p of S.batch) { p._h = null; }
   if (RV) RV.release();
   for (const p of S.batch) { if (p.preview) { p.preview.close(); p.preview = null; } }
   renderGallery();
@@ -992,10 +1003,11 @@ function renderTo(p, bmp, cv, size, o = {}) {
   } else { cv.width = w; cv.height = h; x.drawImage(RT.cv, 0, 0); }
 }
 async function selectPhoto(i) {
-  S.cur = i; resetZ();
+  clearTimeout(histT); histRecord();          // on fige l'historique de la photo qu'on quitte
+  S.cur = i; resetZ(); histInit(S.batch[i]);
   S.batch.forEach((p, j) => p._sth && p._sth.classList.toggle('on', j === i));
   S.batch[i]._sth?.scrollIntoView({ inline: 'center', block: 'nearest', behavior: 'smooth' });
-  $('counter').textContent = (i + 1) + ' / ' + S.batch.length;
+  $('counter').textContent = S.batch.length > 1 ? (i + 1) + ' / ' + S.batch.length : '';
   const p = curP();
   if (!p.settings) p.settings = null;
   syncControls();
@@ -1065,7 +1077,50 @@ function drawView() {
     $('badge').hidden = !orig;
   });
 }
+/* --- historique : annuler / refaire les dernières actions sur la photo en cours --- */
+let histVer = 1e6, histT;
+const hSig = p => JSON.stringify([p.settings, p.geo, p.local, p.mask ? [p.mask.ver, p.mask.inv] : null]);
+function hSnap(p, prev) {
+  let m = null;
+  if (p.mask) {
+    if (prev && prev.m && prev.mv === p.mask.ver) m = prev.m;      // zone inchangée : on réutilise la copie
+    else { m = document.createElement('canvas'); m.width = p.mask.cv.width; m.height = p.mask.cv.height; m.getContext('2d').drawImage(p.mask.cv, 0, 0); }
+  }
+  return { j: JSON.stringify([p.settings, p.geo, p.local]), m, mv: p.mask ? p.mask.ver : -1, inv: !!(p.mask && p.mask.inv) };
+}
+function histUi() {
+  const p = curP(), h = p && p._h;
+  $('btnUndo').disabled = !(h && (p._hi > 0 || hSig(p) !== p._hs));
+  $('btnRedo').disabled = !(h && p._hi < h.length - 1 && hSig(p) === p._hs);
+}
+function histInit(p) { if (!p._h) { p._h = [hSnap(p)]; p._hi = 0; p._hs = hSig(p); } histUi(); }
+function histRecord() {
+  const p = curP(); if (!p || !p._h) return;
+  const sg = hSig(p); if (sg === p._hs) return;
+  p._h.length = p._hi + 1;
+  p._h.push(hSnap(p, p._h[p._hi]));
+  if (p._h.length > 40) p._h.shift();
+  p._hi = p._h.length - 1; p._hs = sg; histUi();
+}
+function histTouch() { clearTimeout(histT); histT = setTimeout(histRecord, 350); histUi(); }
+function histGo(d) {
+  clearTimeout(histT); histRecord();
+  const p = curP(); if (!p || !p._h) return;
+  const i = p._hi + d; if (i < 0 || i >= p._h.length) return;
+  const sn = p._h[i]; p._hi = i;
+  const [st, g, l] = JSON.parse(sn.j); p.settings = st; p.geo = g || newGeo(); p.local = l;
+  if (sn.m) {
+    const cv = document.createElement('canvas'); cv.width = sn.m.width; cv.height = sn.m.height; cv.getContext('2d').drawImage(sn.m, 0, 0);
+    p.mask = { cv, inv: sn.inv, ver: ++histVer }; sn.mv = p.mask.ver;
+  } else p.mask = null;
+  p._hs = hSig(p);
+  syncControls(); drawView(); drawStripThumb(p); if (S.tab === 'pFilters') drawFilterTiles(); histUi();
+}
+$('btnUndo').onclick = () => histGo(-1);
+$('btnRedo').onclick = () => histGo(1);
+
 function changed(stripToo = true) {
+  histTouch();
   drawView();
   clearTimeout(changed.t);
   if (stripToo) changed.t = setTimeout(() => drawStripThumb(curP()), 180);
