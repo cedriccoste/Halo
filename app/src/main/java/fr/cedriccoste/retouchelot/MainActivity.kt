@@ -600,6 +600,20 @@ class MainActivity : ComponentActivity() {
         @JavascriptInterface
         fun hasPermission(): Boolean = hasMediaPermission()
 
+        /** Vrai si l'utilisateur a activé « Gestion des médias » pour Halo : plus de confirmation Android à chaque lot. */
+        @JavascriptInterface
+        fun canManageMedia(): Boolean = Build.VERSION.SDK_INT >= 31 && MediaStore.canManageMedia(this@MainActivity)
+
+        @JavascriptInterface
+        fun openManageMedia() = runOnUiThread {
+            try {
+                if (Build.VERSION.SDK_INT >= 31)
+                    startActivity(Intent(Settings.ACTION_REQUEST_MANAGE_MEDIA, Uri.parse("package:$packageName")))
+            } catch (e: Exception) {
+                startActivity(Intent(Settings.ACTION_APPLICATION_DETAILS_SETTINGS, Uri.parse("package:$packageName")))
+            }
+        }
+
         @JavascriptInterface
         fun hasVideoPermission(): Boolean = this@MainActivity.hasVideoPermission()
 

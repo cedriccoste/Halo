@@ -34,6 +34,9 @@ button{font:inherit;color:inherit;background:none;border:0;padding:0;cursor:poin
 .isvid [data-k=definition],.isvid [data-k=noise],.isvid #btnZone,.isvid #tabs [data-tab=pCrop]{display:none}
 #busyBg{margin-top:10px}
 #busyTxt{font-size:17px;font-weight:600;font-variant-numeric:tabular-nums}
+#btnSettings{padding:9px 11px;display:grid;place-items:center}
+#btnSettings svg{width:20px;height:20px;fill:none;stroke:currentColor;stroke-width:1.8;stroke-linecap:round;display:block}
+.note{font-size:13px;color:var(--mut);margin:10px 2px 0}
 /* galerie */
 #gallery>.bar{background:rgba(0,0,0,.72);backdrop-filter:blur(18px);-webkit-backdrop-filter:blur(18px)}
 #gScroll{flex:1;overflow:auto;padding:0 12px 110px}
@@ -187,7 +190,7 @@ button{font:inherit;color:inherit;background:none;border:0;padding:0;cursor:poin
 <body>
 
 <section id="gallery" class="view">
-  <header class="bar"><h1><i class="halo"></i>Halo<span id="ver"></span></h1><button class="btn" id="btnBackups" hidden>Restaurer</button></header>
+  <header class="bar"><h1><i class="halo"></i>Halo<span id="ver"></span></h1><button class="btn" id="btnBackups" hidden>Restaurer</button><button class="btn" id="btnSettings" aria-label="Réglages"><svg viewBox="0 0 24 24"><path d="M4 7h9M19 7h1M4 17h3M13 17h7"/><circle cx="16" cy="7" r="2.5"/><circle cx="10" cy="17" r="2.5"/></svg></button></header>
   <div id="kinds"><button data-kind="photo" class="on">Photos</button><button data-kind="video">Vidéos</button></div>
   <button id="vjob" hidden></button>
   <div id="upd" hidden><div><b id="updTitle"></b><small id="updNotes"></small></div><button class="btn primary" id="btnUpd">Installer</button></div>
@@ -1389,19 +1392,50 @@ const askWrite = ids => new Promise(res => { writeResolve = res; A.requestWrite(
 function askSave(todo, done) {
   if (!todo.length) { toast("Aucun réglage à enregistrer pour l'instant"); return; }
   const mode = LS.get('mode', 'replace'), vd = isVid(todo[0]), wd = vd ? 'vidéo' : 'photo';
+  // le choix « remplacer / copie » n'est demandé que la première fois (modifiable dans les réglages)
+  if (LS.get('modeSet', false)) { saveAll(todo, mode).then(ok => { if (done) done(ok); if (ok) manageHint(mode); }); return; }
   sheet(`<h2>Enregistrer ${todo.length} ${wd}${todo.length > 1 ? 's' : ''}</h2>
     <p>${vd ? "Le calcul prend à peu près la durée de la vidéo. Il continue en arrière-plan si tu quittes Halo." : "Le nom, la date et le lieu de chaque photo sont conservés."}</p>
-    <label class="opt"><input type="radio" name="m" value="replace" ${mode === 'replace' ? 'checked' : ''}><div><b>Remplacer les originales</b><small>Android te demandera une seule confirmation. Les originales sont gardées 30 jours dans l'appli (bouton « Restaurer »).</small></div></label>
+    <label class="opt"><input type="radio" name="m" value="replace" ${mode === 'replace' ? 'checked' : ''}><div><b>Remplacer les originales</b><small>Les originales sont gardées 30 jours dans l'appli (bouton « Restaurer »).</small></div></label>
     <label class="opt"><input type="radio" name="m" value="copy" ${mode === 'copy' ? 'checked' : ''}><div><b>Enregistrer des copies</b><small>Dans le dossier ${vd ? 'Movies' : 'Images'} › Retouches. Les originales ne sont pas touchées.</small></div></label>
+    <p class="note">Ce choix sera retenu pour les prochaines fois. Tu peux le changer avec le bouton de réglages, en haut de la galerie.</p>
     <div class="srow"><button class="btn" id="svCancel">Annuler</button><button class="btn primary" id="svGo">Enregistrer</button></div>`);
   if (!A) $('sheet').querySelector('p').textContent = 'Version navigateur : les photos seront téléchargées (nom, date et lieu conservés).';
   $('svCancel').onclick = closeSheet;
   $('svGo').onclick = async () => {
-    const m = $('sheet').querySelector('input[name=m]:checked').value; LS.set('mode', m); closeSheet();
+    const m = $('sheet').querySelector('input[name=m]:checked').value; LS.set('mode', m); LS.set('modeSet', true); closeSheet();
     const ok = await saveAll(todo, m);
     if (done) done(ok);
+    if (ok) manageHint(m);
   };
 }
+/* Confirmation Android à chaque lot : on propose une fois de l'enlever (« Gestion des médias ») */
+const canManage = () => { try { return !!(A && A.canManageMedia && A.canManageMedia()); } catch (e) { return false; } };
+function manageHint(mode) {
+  if (!A || !A.canManageMedia || mode !== 'replace' || canManage() || LS.get('mmAsked', false)) return;
+  LS.set('mmAsked', true);
+  setTimeout(() => {
+    sheet(`<h2>Ne plus confirmer à chaque fois ?</h2>
+      <p>Android te demande d'autoriser la modification à chaque enregistrement. Tu peux donner cette autorisation à Halo une fois pour toutes : dans l'écran qui va s'ouvrir, active « Halo ».</p>
+      <div class="srow"><button class="btn" onclick="closeSheet()">Plus tard</button><button class="btn primary" id="mmGo">Autoriser une fois pour toutes</button></div>`);
+    $('mmGo').onclick = () => { closeSheet(); A.openManageMedia(); };
+  }, 900);
+}
+$('btnSettings').onclick = () => {
+  const mode = LS.get('mode', 'replace'), ask = !LS.get('modeSet', false);
+  let android = '';
+  if (A && A.canManageMedia) android = canManage()
+    ? `<p class="note">Confirmation Android : désactivée, Halo modifie tes photos directement ✓</p>`
+    : `<p class="note">Android demande une confirmation à chaque enregistrement.</p><div class="srow"><button class="btn" id="stMm">Autoriser une fois pour toutes</button></div>`;
+  sheet(`<h2>Réglages</h2><p>À l'enregistrement</p>
+    <label class="opt"><input type="radio" name="sm" value="replace" ${mode === 'replace' ? 'checked' : ''}><div><b>Remplacer les originales</b><small>Les originales sont gardées 30 jours (bouton « Restaurer »).</small></div></label>
+    <label class="opt"><input type="radio" name="sm" value="copy" ${mode === 'copy' ? 'checked' : ''}><div><b>Enregistrer des copies</b><small>Dans le dossier Retouches. Les originales ne sont pas touchées.</small></div></label>
+    <label class="opt"><input type="checkbox" id="stAsk" ${ask ? 'checked' : ''}><div><b>Me demander à chaque fois</b></div></label>
+    ${android}
+    <div class="srow"><button class="btn primary" id="stOk">OK</button></div>`);
+  if ($('stMm')) $('stMm').onclick = () => { closeSheet(); A.openManageMedia(); };
+  $('stOk').onclick = () => { LS.set('mode', $('sheet').querySelector('input[name=sm]:checked').value); LS.set('modeSet', !$('stAsk').checked); closeSheet(); };
+};
 // comme sur l'iPhone : une fois la photo enregistrée, on revient aux photos
 $('btnSave').onclick = () => askSave(S.batch.filter(isEdited), ok => { if (ok && S.batch.length === 1) closeEditor(); });
 
