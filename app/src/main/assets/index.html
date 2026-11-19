@@ -1347,13 +1347,31 @@ $('btnPreset').onclick = () => {
   $('psLoad').onclick = () => { const p = curP(); p.settings = normSettings(clone(LS.get('preset'))); closeSheet(); syncControls(); changed(); };
   $('psAll').onclick = () => { const pr = normSettings(LS.get('preset')); for (const q of S.batch) { q.settings = clone(pr); drawStripThumb(q); } closeSheet(); syncControls(); changed(); toast('Mon réglage appliqué à toutes les photos'); };
 };
+/* ---------- Annuler une retouche déjà enregistrée : on remet l'originale (gardée 30 jours) ---------- */
+const canRevert = p => !!(A && p && p.saved && p.useBackup);
+async function restoreIds(ids) {
+  if (!ids.length) return 0;
+  const ok = await askWrite(ids); if (!ok) { toast('Annulation abandonnée (autorisation refusée)'); return 0; }
+  busy(true, 'Retour à l\'original…', 0); await tick();
+  let n = 0;
+  for (const id of ids) {
+    const r = A.restoreBackup(id);
+    if (r === 'ok') { n++; memForget(id); const p = S.all.get(id); if (p) { p.v = Date.now(); p.saved = false; p.useBackup = false; p.savedSig = undefined; p.thumb = null; if (p.preview) { p.preview.close(); p.preview = null; } p.auto = null; p.settings = null; p.geo = newGeo(); p.mask = null; p.local = null; } }
+  }
+  busy(false);
+  toast(n ? `${n > 1 ? n + ' originales rétablies' : 'Originale rétablie'} ✓` : "Impossible de rétablir l'originale");
+  if (!$('gallery').hidden) renderGallery();
+  return n;
+}
 $('btnMore2').onclick = () => {
   sheet(`<h2>Réglages de cette photo</h2>
     <button class="mitem" data-b="btnCopy">Copier le réglage</button>
     <button class="mitem" data-b="btnPaste">Coller le réglage</button>
     <button class="mitem" data-b="btnPreset">Mon réglage préféré…</button>
-    <button class="mitem" data-b="btnReset">Réinitialiser la photo</button>`);
-  for (const b of $('sheet').querySelectorAll('.mitem')) b.onclick = () => { closeSheet(); $(b.dataset.b).click(); };
+    <button class="mitem" data-b="btnReset">Réinitialiser la photo</button>
+    <button class="mitem" id="mRevert" ${canRevert(curP()) ? '' : 'hidden'}>Rétablir l'originale (annuler la retouche enregistrée)</button>`);
+  $('mRevert').onclick = async () => { const p = curP(); closeSheet(); if (await restoreIds([p.id])) closeEditor(); };
+  for (const b of $('sheet').querySelectorAll('.mitem[data-b]')) b.onclick = () => { closeSheet(); $(b.dataset.b).click(); };
 };
 function leaveEditor() {
   const todo = S.batch.filter(unsaved);
@@ -1372,7 +1390,9 @@ $('btnSelMenu').onclick = () => {
   sheet(`<h2>${n} ${wd}${n > 1 ? 's' : ''} sélectionnée${n > 1 ? 's' : ''}</h2>
     <button class="mitem" id="smPaste" ${S.clip ? '' : 'disabled'}>Coller le réglage${S.clip ? '' : ' (copie d\'abord un réglage dans une photo)'}</button>
     <button class="mitem" id="smPreset" ${pr ? '' : 'disabled'}>Appliquer mon réglage préféré</button>
-    <button class="mitem" id="smEdit" ${S.kind === 'video' ? 'hidden' : ''}>Retoucher ensemble</button>`);
+    <button class="mitem" id="smEdit" ${S.kind === 'video' ? 'hidden' : ''}>Retoucher ensemble</button>
+    <button class="mitem" id="smRevert" ${list.some(canRevert) ? '' : 'hidden'}>Rétablir les originales (annuler les retouches)</button>`);
+  $('smRevert').onclick = async () => { closeSheet(); await restoreIds(list.filter(canRevert).map(p => p.id)); S.selected.clear(); S.selMode = false; renderGallery(); };
   const paste = src => { closeSheet(); for (const p of list) p.settings = normSettings(clone(src)); askSave(list, ok => { if (ok) { S.selected.clear(); S.selMode = false; } renderGallery(); }); };
   $('smPaste').onclick = () => paste(S.clip);
   $('smPreset').onclick = () => paste(pr);
@@ -1653,10 +1673,7 @@ $('btnBackups').onclick = () => {
     const ids = [...$('sheet').querySelectorAll('input:checked')].map(x => x.value);
     if (!ids.length) return toast('Coche au moins une photo');
     closeSheet();
-    const ok = await askWrite(ids); if (!ok) return toast('Restauration annulée');
-    let n = 0;
-    for (const id of ids) { const r = A.restoreBackup(id); if (r === 'ok') { n++; memForget(id); const p = S.all.get(id); if (p) { p.v = Date.now(); p.saved = false; p.useBackup = false; p.thumb = null; p.preview = null; p.auto = null; p.settings = null; p.geo = newGeo(); } } }
-    toast(`${n} photo${n > 1 ? 's' : ''} restaurée${n > 1 ? 's' : ''}`); renderGallery();
+    await restoreIds(ids);
   };
 };
 
