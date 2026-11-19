@@ -180,7 +180,7 @@ button{font:inherit;color:inherit;background:none;border:0;padding:0;cursor:poin
 #busy{position:fixed;inset:0;background:rgba(0,0,0,.82);backdrop-filter:blur(8px);z-index:30;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:14px;text-align:center;padding:30px}
 #busy .bar2{width:62%;height:4px;background:rgba(255,255,255,.15);border-radius:4px;overflow:hidden}
 #busy .bar2 i{display:block;height:100%;width:0;background:var(--acc);transition:width .2s}
-#toast{position:fixed;left:50%;top:68px;transform:translateX(-50%);background:rgba(38,38,43,.92);backdrop-filter:blur(14px);border:1px solid var(--line);padding:10px 18px;border-radius:999px;z-index:40;font-size:14px;max-width:88%;text-align:center;opacity:0;transition:opacity .25s;pointer-events:none}
+#toast{position:fixed;white-space:pre-line;line-height:1.35;left:50%;top:68px;transform:translateX(-50%);background:rgba(38,38,43,.92);backdrop-filter:blur(14px);border:1px solid var(--line);padding:10px 18px;border-radius:20px;z-index:40;font-size:14px;max-width:88%;text-align:center;opacity:0;transition:opacity .25s;pointer-events:none}
 #toast.show{opacity:1}
 </style>
 </head>
@@ -566,6 +566,24 @@ void main(){
 }`;
 
 const SHN = ['Exp', 'Bri', 'Hi', 'Sh', 'Con', 'Lum', 'Blk', 'Sat', 'Vib', 'Warm', 'Tint', 'Sharp', 'Def', 'Noise', 'Vig'];   // noms des réglages dans le shader, même ordre que ADJ_KEYS
+// Tous les réglages du shader pour une photo de w×h : [nom, type, valeurs…].
+// La même liste sert à l'aperçu et au moteur Android natif (PhotoEngine.kt), d'où un rendu identique.
+function uniformList(e, G, w, h, original, loc, hasMask) {
+  const mx = Math.max(w, h), tr = Math.max(1, mx / 3000);
+  const L = [
+    ['uTexel', '2f', tr / w, tr / h], ['uLodDef', '1f', Math.log2(mx / 48)], ['uLodNR', '1f', Math.max(0, Math.log2(mx / 4000 * 2.8))],
+    ['uRot', '1i', G.rot], ['uCrop', '2f', G.cw, G.ch], ['uAsp', '1f', G.Aasp], ['uZoom', '1f', G.zoom],
+    ['uAng', '1f', G.ang], ['uVe', '1f', G.ve], ['uHo', '1f', G.ho], ['uOutAsp', '1f', G.outAspect],
+    ['uOrig', '1i', original ? 1 : 0], ['uMono', '1f', e.mono],
+    ['uHasMask', '1i', loc && hasMask ? 1 : 0], ['uInv', '1f', loc && loc.inv ? 1 : 0], ['uShow', '1i', loc && loc.show ? 1 : 0],
+    ['uTex', '1i', 0], ['uMask', '1i', 1],
+  ];
+  ADJ_KEYS.forEach((k, i) => {
+    const sc = k === 'exposure' ? 2 : 1;
+    L.push(['g' + SHN[i], '1f', e[k] / 100 * sc], ['l' + SHN[i], '1f', loc ? (loc.adj[k] || 0) / 100 * sc : 0]);
+  });
+  return L;
+}
 class Renderer {
   constructor(canvas) {
     this.cv = canvas;
@@ -585,6 +603,54 @@ class Renderer {
     this.tex = null; this.img = null;
     // texture du masque (unité 1) : 1 pixel vide par défaut
     this.maskTex = gl.createTexture(); this.maskKey = null; this.hasMask = false;
+    gl.activeTexture(gl.TEXTURE1); gl.bindTexture(gl.TEXTURE_2D, this.maskTex);
+    gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA, 1, 1, 0, gl.RGBA, gl.UNSIGNED_BYTE, new Uint8Array(4));
+    for (const [k, v] of [[gl.TEXTURE_MIN_FILTER, gl.LINEAR], [gl.TEXTURE_MAG_FILTER, gl.LINEAR], [gl.TEXTURE_WRAP_S, gl.CLAMP_TO_EDGE], [gl.TEXTURE_WRAP_T, gl.CLAMP_TO_EDGE]]) gl.texParameteri(gl.TEXTURE_2D, k, v);
+    gl.activeTexture(gl.TEXTURE0);
+  }
+  setMask(cv, key) {
+    const gl = this.gl;
+    if (!cv) { this.hasMask = false; return; }
+    if (this.maskKey !== key) {
+      gl.activeTexture(gl.TEXTURE1); gl.bindTexture(gl.TEXTURE_2D, this.maskTex);
+      gl.pixelStorei(gl.UNPACK_FLIP_Y_WEBGL, false); gl.pixelStorei(gl.UNPACK_PREMULTIPLY_ALPHA_WEBGL, false);
+      gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA, gl.RGBA, gl.UNSIGNED_BYTE, cv);
+      gl.activeTexture(gl.TEXTURE0);
+      this.maskKey = key;
+    }
+    this.hasMask = true;
+  }
+  setImage(img, mip = true) {
+    const gl = this.gl;
+    if (this.img === img && this.tex) return;
+    if (this.tex) gl.deleteTexture(this.tex);
+    const t = this.tex = gl.createTexture(); gl.bindTexture(gl.TEXTURE_2D, t);
+    gl.pixelStorei(gl.UNPACK_FLIP_Y_WEBGL, false);
+    gl.pixelStorei(gl.UNPACK_PREMULTIPLY_ALPHA_WEBGL, false);
+    gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA, gl.RGBA, gl.UNSIGNED_BYTE, img);
+    if (mip) gl.generateMipmap(gl.TEXTURE_2D);       // inutile (et coûteux en pleine résolution) sans Définition ni Bruit
+    gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, mip ? gl.LINEAR_MIPMAP_LINEAR : gl.LINEAR);
+    gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, gl.LINEAR);
+    gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_S, gl.CLAMP_TO_EDGE);
+    gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_T, gl.CLAMP_TO_EDGE);
+    this.img = img; this.w = img.videoWidth || img.width; this.h = img.videoHeight || img.height;
+  }
+  // vidéo : recharge l'image courante du lecteur
+  refresh() {
+    const gl = this.gl;
+    gl.activeTexture(gl.TEXTURE0); gl.bindTexture(gl.TEXTURE_2D, this.tex);
+    gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA, gl.RGBA, gl.UNSIGNED_BYTE, this.img);
+    gl.generateMipmap(gl.TEXTURE_2D);
+  }
+  release() { if (this.tex) this.gl.deleteTexture(this.tex); this.tex = null; this.img = null; }
+  render(e, G, outW, outH, original = false, loc = null) {
+    const gl = this.gl, u = this.u;
+    if (this.cv.width !== outW || this.cv.height !== outH) { this.cv.width = outW; this.cv.height = outH; }
+    gl.viewport(0, 0, outW, outH);
+    for (const [n, t, v0, v1] of uniformList(e, G, this.w, this.h, original, loc, this.hasMask)) {
+      const l = u[n]; if (l == null) continue;
+      if (t === '1i') gl.uniform1i(l, v0); else if (t === '2f') gl.uniform2f(l, v0, v1); else gl.uniform1f(l, v0);
+    }
     gl.activeTexture(gl.TEXTURE1); gl.bindTexture(gl.TEXTURE_2D, this.maskTex);
     gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA, 1, 1, 0, gl.RGBA, gl.UNSIGNED_BYTE, new Uint8Array(4));
     for (const [k, v] of [[gl.TEXTURE_MIN_FILTER, gl.LINEAR], [gl.TEXTURE_MAG_FILTER, gl.LINEAR], [gl.TEXTURE_WRAP_S, gl.CLAMP_TO_EDGE], [gl.TEXTURE_WRAP_T, gl.CLAMP_TO_EDGE]]) gl.texParameteri(gl.TEXTURE_2D, k, v);
@@ -1423,12 +1489,45 @@ async function nativeSave(p, blob, mode) {
   }
   return A.saveImage(p.id, await blobToB64(blob), mode);
 }
+function markSaved(p, r) {
+  if (!String(r).startsWith('ok')) throw new Error(String(r).replace(/^err:/, ''));
+  if (r === 'ok') { p.useBackup = true; p.saved = true; p.v = Date.now(); memSave(p, 'replace'); if (backupIds) backupIds.add(p.id); }
+  if (r === 'ok:copy') { p.saved = true; memSave(p, 'copy'); }
+  p.savedSig = sig(p);
+}
+/* Moteur natif : Android décode, calcule sur la puce graphique et compresse lui-même la photo.
+   Renvoie null si la photo n'est pas prise en charge (on repasse alors par l'ancien chemin). */
+const nativeWait = new Map(); let nativeBroken = false, diag = null;
+window.onNativeSave = (id, r) => { const f = nativeWait.get(id); nativeWait.delete(id); if (f) f(String(r)); };
+async function nativeRenderSave(p, mode) {
+  const [w, h] = String(A.imageSize(p.id)).split(',').map(Number);
+  if (!(w > 0 && h > 0)) return null;
+  try { await ensureThumb(p); } catch (e) {}
+  if (autoOn(p.settings) && !p.auto) { if (!p.thumb) return null; p.auto = analyzeAuto(p.thumb); }
+  const G = geomFor(w, h, p.geo), e = effective(p), z = hasZone(p);
+  const loc = z ? { adj: p.local, inv: p.mask.inv, show: false } : null;
+  const job = { id: p.id, mode, srcW: w, srcH: h, outW: G.outW, outH: G.outH, fs: FS,
+    mip: !!(e.definition || e.noise || (z && (p.local.definition || p.local.noise))),
+    plain: isDefaultGeo(p.geo) && !z && !e.vignette,     // permet au moteur de vérifier que l'image n'est pas retournée
+    uniforms: uniformList(e, G, w, h, false, loc, z) };
+  if (z) job.mask = p.mask.cv.toDataURL('image/png').split(',')[1];
+  const r = await new Promise((res, rej) => {
+    const t = setTimeout(() => { nativeWait.delete(p.id); rej(new Error('délai dépassé')); }, 60000);
+    nativeWait.set(p.id, x => { clearTimeout(t); res(x); });
+    const s = A.renderSave(JSON.stringify(job));
+    if (s !== 'ok') { clearTimeout(t); nativeWait.delete(p.id); rej(new Error(s)); }
+  });
+  if (!r.startsWith('ok')) throw new Error(r.replace(/^err:/, ''));
+  const [res, tm] = r.split('|');
+  markSaved(p, res);
+  for (const kv of (tm || '').split(',')) { const [k, v] = kv.split('='); if (k === 'px') diag.px = v; else if (k) diag[k] = (diag[k] || 0) + (+v || 0); }
+  diag.n++;
+  return res;
+}
 async function storeImage(p, out, srcBlob, mode) {
   if (A) {
-    const r = await nativeSave(p, out, mode);
-    if (!String(r).startsWith('ok')) throw new Error(String(r).replace(/^err:/, ''));
-    if (mode === 'replace' && r === 'ok') { p.useBackup = true; p.saved = true; p.v = Date.now(); memSave(p, 'replace'); if (backupIds) backupIds.add(p.id); }
-    if (r === 'ok:copy') { p.saved = true; memSave(p, 'copy'); }
+    markSaved(p, await nativeSave(p, out, mode));
+    return;
   } else {
     const withExif = await transplantExif(srcBlob, out);
     const a = document.createElement('a'); a.href = URL.createObjectURL(withExif);
@@ -1447,12 +1546,17 @@ async function saveAll(list, mode) {
     if (!ok) { busy(false); toast('Enregistrement annulé (autorisation refusée)'); return false; }
   }
   const errors = [], writes = [], t0 = performance.now();
+  diag = { n: 0 };
   let done = 0, nextDec = null;
   const fail = (p, e) => { console.error(e); errors.push(p.name + ' : ' + (e.message || e)); };
   const show = () => busy(true, `Enregistrement ${Math.min(done + 1, list.length)} / ${list.length}`, done / list.length);
   for (let i = 0; i < list.length; i++) {
     const p = list[i];
     show(); await tick();
+    if (A && A.renderSave && !nativeBroken) {
+      try { if (await nativeRenderSave(p, mode)) { done++; continue; } }
+      catch (e) { console.warn('moteur natif', e); nativeBroken = String(e.message || e); }   // on repasse par l'ancien chemin
+    }
     try {
       const d = nextDec || startDecode(p); nextDec = null;
       const dec = await d;
@@ -1468,7 +1572,13 @@ async function saveAll(list, mode) {
   busy(false);
   const secs = Math.round((performance.now() - t0) / 100) / 10;
   if (errors.length) sheet(`<h2>${list.length - errors.length} enregistrée(s), ${errors.length} erreur(s)</h2><p>${errors.map(x => x.replace(/</g, '&lt;')).join('<br>')}</p><div class="srow"><button class="btn primary" onclick="closeSheet()">OK</button></div>`);
-  else toast(`${list.length} photo${list.length > 1 ? 's' : ''} enregistrée${list.length > 1 ? 's' : ''} en ${String(secs).replace('.', ',')} s ✓`, 3500);
+  else {
+    const s1 = x => String(Math.round(x / 100) / 10).replace('.', ',') + ' s';
+    let more = '';
+    if (diag.n) more = `\n${diag.px} · lecture ${s1(diag.dec)} · calcul ${s1(diag.gl)} · compression ${s1(diag.jpg)} · écriture ${s1(diag.all - diag.dec - diag.gl - diag.jpg)}`;
+    else if (nativeBroken) more = '\nMoteur de secours (' + nativeBroken + ')';
+    toast(`${list.length} photo${list.length > 1 ? 's' : ''} enregistrée${list.length > 1 ? 's' : ''} en ${String(secs).replace('.', ',')} s ✓` + more, more ? 9000 : 3500);
+  }
   return !errors.length;
 }
 

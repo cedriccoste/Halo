@@ -9,6 +9,7 @@ import android.content.ContentValues
 import android.content.Intent
 import android.content.pm.PackageManager
 import android.graphics.Bitmap
+import android.graphics.BitmapFactory
 import android.graphics.Color
 import android.net.Uri
 import android.os.Build
@@ -61,6 +62,7 @@ class MainActivity : ComponentActivity() {
 
     // transfert rapide des photos retouchées (octets bruts, sans passer par du texte)
     private var binOk = false
+    private val renderPool = java.util.concurrent.Executors.newSingleThreadExecutor()
     private val pendingBin = java.util.concurrent.ConcurrentLinkedQueue<Pair<String, String>>()
 
     private val permLauncher =
@@ -386,13 +388,39 @@ class MainActivity : ComponentActivity() {
     private fun doSave(id: String, b64: String, mode: String): String =
         doSaveBytes(id, Base64.decode(b64, Base64.DEFAULT), mode)
 
-    private fun doSaveBytes(id: String, bytes: ByteArray, mode: String): String {
+    private fun doSaveBytes(id: String, bytes: ByteArray, mode: String): String =
+        saveWith(id, mode) { tmp, _ -> tmp.writeBytes(bytes) }
+
+    /** Taille de la photo telle que le moteur natif la calculera (redressée, limitée à 8192 px). "0,0" = pas prise en charge. */
+    private fun plannedSize(id: String): String {
+        val uri = uriFor(id)
+        if (contentResolver.getType(uri) != "image/jpeg") return "0,0"
+        val o = BitmapFactory.Options().apply { inJustDecodeBounds = true }
+        val orientation: Int
+        val backup = findBackup(id)
+        if (backup != null) {
+            BitmapFactory.decodeFile(backup.absolutePath, o)
+            orientation = ExifInterface(backup.absolutePath).getAttributeInt(ExifInterface.TAG_ORIENTATION, 1)
+        } else {
+            contentResolver.openInputStream(uri)?.use { BitmapFactory.decodeStream(it, null, o) }
+            orientation = contentResolver.openInputStream(uri)?.use { ExifInterface(it).getAttributeInt(ExifInterface.TAG_ORIENTATION, 1) } ?: 1
+        }
+        if (o.outWidth <= 0 || o.outHeight <= 0) return "0,0"
+        val (w, h) = PhotoEngine.plannedSize(o.outWidth, o.outHeight, orientation)
+        return "$w,$h"
+    }
+
+    /**
+     * Enregistre une photo retouchée : `produce` écrit le JPEG dans un fichier temporaire
+     * (à partir de l'originale sauvegardée), puis on recopie date/lieu et on remplace ou on copie.
+     */
+    private fun saveWith(id: String, mode: String, produce: (File, File) -> Unit): String {
         val uri = uriFor(id)
         val name = queryString(uri, MediaStore.Images.Media.DISPLAY_NAME) ?: "photo_$id.jpg"
         val mime = queryString(uri, MediaStore.Images.Media.MIME_TYPE) ?: "image/jpeg"
         val original = ensureBackup(id, uri, name)
         val tmp = File(cacheDir, "out_$id.jpg")
-        tmp.writeBytes(bytes)
+        produce(tmp, original)
         copyExif(original, tmp)
 
         // un fichier HEIC/PNG ne peut pas recevoir un JPEG : on crée une copie à la place
@@ -605,6 +633,29 @@ class MainActivity : ComponentActivity() {
         @JavascriptInterface
         fun saveImage(id: String, b64: String, mode: String): String =
             try { doSave(id, b64, mode) } catch (e: Exception) { "err:" + (e.message ?: e.javaClass.simpleName) }
+
+        @JavascriptInterface
+        fun imageSize(id: String): String = try { plannedSize(id) } catch (e: Exception) { "0,0" }
+
+        /** Calcul natif d'une photo en pleine résolution ; réponse par window.onNativeSave(id, résultat). */
+        @JavascriptInterface
+        fun renderSave(json: String): String {
+            val job = JSONObject(json)
+            val id = job.getString("id")
+            val mode = job.optString("mode", "replace")
+            renderPool.execute {
+                val t0 = android.os.SystemClock.elapsedRealtime()
+                val r = try {
+                    var tm = ""
+                    val res = saveWith(id, mode) { tmp, original -> tm = PhotoEngine.render(original, job, tmp) }
+                    "$res|$tm,all=${android.os.SystemClock.elapsedRealtime() - t0}"
+                } catch (e: Throwable) {
+                    "err:" + (e.message ?: e.javaClass.simpleName)
+                }
+                js("window.onNativeSave && window.onNativeSave(${JSONObject.quote(id)}, ${JSONObject.quote(r)})")
+            }
+            return "ok"
+        }
 
         @JavascriptInterface
         fun binSupported(): Boolean = binOk
