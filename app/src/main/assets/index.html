@@ -374,25 +374,26 @@ function analyzeAuto(bmp) {
     if (L > 60 && L < 240 && (mx - mn) < 22) { sr += R; sg += G; sb += B; cnt++; }
   }
   const pct = p => { let t = p * n, a = 0; for (let i = 0; i < 256; i++) { a += hist[i]; if (a >= t) return i / 255; } return 1; };
-  const p01 = pct(.01), p05 = pct(.05), p50 = pct(.5), p95 = pct(.95), p99 = pct(.99);
+  const p01 = pct(.01), p05 = pct(.05), p50 = pct(.5), p75 = pct(.75), p95 = pct(.95), p99 = pct(.99);
   const clipF = clip / n;
   const o = Object.fromEntries(ADJ_KEYS.map(k => [k, 0]));
   // Principe : le réglage de base ne doit jamais rendre la photo plus sombre qu'à l'origine.
   // exposition : on éclaircit les photos sombres ; une photo déjà claire est laissée telle quelle
-  let ev = 2.2 * Math.log2(0.54 / Math.max(p50, 0.02));
-  if (ev > 0) {
-    ev = Math.min(ev * 0.62, 1.15);
-    const room = 2.2 * Math.log2(0.985 / Math.max(p95, 0.05)) + 0.4;   // marge avant de brûler les clairs
-    ev = Math.min(ev, Math.max(0, room));
-  } else ev = p50 > 0.74 ? Math.max(ev * 0.25, -0.12) : 0;             // seulement si la photo est vraiment surexposée
+  // On mesure trois niveaux (tons moyens, tons clairs, zones les plus claires) et on retient le plus prudent :
+  // une photo au fond sombre mais au sujet bien exposé (portrait, intérieur avec fenêtre) n'est pas surexposée.
+  const g = (target, v) => 2.2 * Math.log2(target / Math.max(v, 0.02));
+  let ev = Math.min(g(0.54, p50), g(0.70, p75), g(0.90, p95));
+  if (ev > 0) ev = Math.min(ev * 0.62, 1.1);
+  else ev = p50 > 0.74 ? Math.max(ev * 0.25, -0.12) : 0;               // on ne fonce que si la photo est vraiment surexposée
   o.exposure = Math.round(ev / 2 * 100);
   // ombres : on les débouche
-  if (p05 < 0.16) o.shadows = Math.round(clamp((0.16 - p05) / 0.16 * 34 + 8, 0, 42));
+  if (p05 < 0.16) o.shadows = Math.round(clamp((0.16 - p05) / 0.16 * 24 + 6, 0, 30));
   // hautes lumières : on ne les retient que s'il y a des zones brûlées (fenêtres, ciel), et modérément
   if (clipF > 0.004 || p99 > 0.985) o.highlights = -Math.round(clamp(8 + clipF * 160, 0, 28));
   // brillance + un peu de luminosité : donne de l'éclat sans ternir les murs clairs
-  o.brilliance = 16;
-  o.brightness = Math.round(clamp(6 + (0.62 - p50) * 14, 3, 10));
+  const head = clamp((0.92 - p95) / 0.3, 0, 1);                        // marge restante dans les clairs
+  o.brilliance = 14;
+  o.brightness = Math.round(2 + 6 * head);
   // contraste & point noir
   const spread = p95 - p05;
   if (spread < 0.65) o.contrast = Math.round(clamp((0.65 - spread) * 55, 0, 22));
@@ -403,11 +404,11 @@ function analyzeAuto(bmp) {
   // prudence : sans assez de zones neutres (murs blancs, plafonds), on ne touche pas aux couleurs
   if (cnt >= n * 0.04 && R > 0 && G > 0 && B > 0) {
     const rb = Math.log(R / B) - 0.03;           // garde une légère chaleur
-    o.warmth = Math.round(clamp(-rb / 0.405 * 100 * 0.5, -24, 24));
+    o.warmth = Math.round(clamp(-rb / 0.405 * 100 * 0.35, -14, 14));
     const gc = Math.log(G / Math.sqrt(R * B));
-    o.tint = Math.round(clamp(gc / 0.1625 * 100 * 0.5, -20, 20));
+    o.tint = Math.round(clamp(gc / 0.1625 * 100 * 0.35, -12, 12));
   }
-  o.vibrance = 12; o.saturation = 4;
+  o.vibrance = 9; o.saturation = 2;
   // profil de la photo : sert à adapter la course du curseur Auto
   return {
     B: o,
