@@ -377,20 +377,27 @@ function analyzeAuto(bmp) {
   const p01 = pct(.01), p05 = pct(.05), p50 = pct(.5), p95 = pct(.95), p99 = pct(.99);
   const clipF = clip / n;
   const o = Object.fromEntries(ADJ_KEYS.map(k => [k, 0]));
-  // exposition : ramener les tons moyens vers ~0.47
-  let ev = Math.log2(Math.pow(0.47, 2.2) / Math.max(1e-4, Math.pow(Math.max(p50, 0.02), 2.2)));
-  ev = clamp(ev, -1, 1.6);
-  if (ev > 0) ev = Math.min(ev, Math.max(0, Math.log2(Math.pow(0.99, 2.2) / Math.pow(Math.max(p95, 0.05), 2.2)) + 0.6));
-  o.exposure = Math.round(ev / 2 * 100 * 0.85);
-  // ombres / hautes lumières
-  if (p05 < 0.14) o.shadows = Math.round(clamp((0.14 - p05) / 0.14 * 40 + 10, 0, 50));
-  if (p99 > 0.96 || clipF > 0.01) o.highlights = -Math.round(clamp(18 + clipF * 200, 0, 42));
-  o.brilliance = 18;
+  // Principe : le réglage de base ne doit jamais rendre la photo plus sombre qu'à l'origine.
+  // exposition : on éclaircit les photos sombres ; une photo déjà claire est laissée telle quelle
+  let ev = 2.2 * Math.log2(0.54 / Math.max(p50, 0.02));
+  if (ev > 0) {
+    ev = Math.min(ev * 0.62, 1.15);
+    const room = 2.2 * Math.log2(0.985 / Math.max(p95, 0.05)) + 0.4;   // marge avant de brûler les clairs
+    ev = Math.min(ev, Math.max(0, room));
+  } else ev = p50 > 0.74 ? Math.max(ev * 0.25, -0.12) : 0;             // seulement si la photo est vraiment surexposée
+  o.exposure = Math.round(ev / 2 * 100);
+  // ombres : on les débouche
+  if (p05 < 0.16) o.shadows = Math.round(clamp((0.16 - p05) / 0.16 * 34 + 8, 0, 42));
+  // hautes lumières : on ne les retient que s'il y a des zones brûlées (fenêtres, ciel), et modérément
+  if (clipF > 0.004 || p99 > 0.985) o.highlights = -Math.round(clamp(8 + clipF * 160, 0, 28));
+  // brillance + un peu de luminosité : donne de l'éclat sans ternir les murs clairs
+  o.brilliance = 16;
+  o.brightness = Math.round(clamp(6 + (0.62 - p50) * 14, 3, 10));
   // contraste & point noir
   const spread = p95 - p05;
-  if (spread < 0.65) o.contrast = Math.round(clamp((0.65 - spread) * 60, 0, 25));
-  else if (spread > 0.92) o.contrast = -8;
-  if (p01 > 0.05) o.blackpoint = Math.round(clamp(p01 * 120, 0, 18));
+  if (spread < 0.65) o.contrast = Math.round(clamp((0.65 - spread) * 55, 0, 22));
+  else if (spread > 0.92) o.contrast = -6;
+  if (p01 > 0.06) o.blackpoint = Math.round(clamp((p01 - 0.03) * 110, 0, 12));
   // balance des blancs (sur les zones presque neutres, sinon moyenne globale)
   let R = sr, G = sg, B = sb;
   // prudence : sans assez de zones neutres (murs blancs, plafonds), on ne touche pas aux couleurs
