@@ -66,6 +66,25 @@ button{font:inherit;color:inherit;background:none;border:0;padding:0;cursor:poin
 #upd div{min-width:0}#upd b{color:var(--acc);display:block}#upd small{color:#cfc8b4;display:block;white-space:pre-line;overflow-wrap:anywhere;max-height:84px;overflow:hidden}
 #upd .btn{align-self:stretch;padding:11px}
 #ver{font-size:12px;color:var(--mut);font-weight:400;letter-spacing:0}
+/* visionneuse */
+#viewer{background:#000}
+#vwStage{position:absolute;inset:0;overflow:hidden;touch-action:none;display:grid;place-items:center;background:center/contain no-repeat}
+#vwImg{max-width:100%;max-height:100%;display:block;will-change:transform;-webkit-user-select:none;user-select:none;transition:opacity .15s}
+#vwVid{width:100%;height:100%;background:#000}
+#vwTop,#vwBar{position:absolute;left:0;right:0;z-index:5;display:flex;align-items:center;transition:opacity .2s}
+#vwTop{top:0;gap:12px;padding:10px 14px 28px;background:linear-gradient(rgba(0,0,0,.6),transparent)}
+#vwTitle{font-size:15px;font-weight:550;text-shadow:0 1px 4px rgba(0,0,0,.8)}
+#vwTitle small{display:block;font-size:12px;font-weight:400;color:#d6d4cf}
+.vwRound{width:38px;height:38px;border-radius:50%;display:grid;place-items:center;background:rgba(30,30,34,.55);backdrop-filter:blur(14px);-webkit-backdrop-filter:blur(14px);flex:none}
+#viewer svg{width:22px;height:22px;fill:none;stroke:currentColor;stroke-width:1.8;stroke-linecap:round;stroke-linejoin:round;display:block}
+#vwBar{bottom:0;justify-content:space-around;padding:26px 8px calc(12px + env(safe-area-inset-bottom));background:linear-gradient(transparent,rgba(0,0,0,.7))}
+#vwBar button{display:flex;flex-direction:column;align-items:center;gap:5px;font-size:11.5px;color:#eceae5;min-width:68px;padding:6px 4px}
+#vwBar #vwEdit{color:var(--acc)}
+#viewer.nochrome #vwTop,#viewer.nochrome #vwBar{opacity:0;pointer-events:none}
+#viewer.isvid #vwBar{position:static;margin-top:auto;background:#000;padding-top:10px}
+#viewer.isvid #vwStage{bottom:78px}
+.irow{display:flex;justify-content:space-between;gap:16px;padding:11px 2px;border-bottom:1px solid var(--line);font-size:14px}
+.irow span:first-child{color:var(--mut);flex:none}.irow span:last-child{text-align:right;overflow-wrap:anywhere}
 /* éditeur */
 #editor>.bar{position:absolute;top:0;left:0;right:0;z-index:5;background:linear-gradient(rgba(0,0,0,.6),transparent);pointer-events:none;padding-bottom:22px}
 #editor>.bar .btn{pointer-events:auto;backdrop-filter:blur(14px);-webkit-backdrop-filter:blur(14px)}
@@ -200,7 +219,7 @@ button{font:inherit;color:inherit;background:none;border:0;padding:0;cursor:poin
 
 <section id="gallery" class="view">
   <header class="bar"><h1><i class="halo"></i>Halo<span id="ver"></span></h1><button class="btn" id="btnBackups" hidden>Restaurer</button><button class="btn" id="btnSettings" aria-label="Réglages"><svg viewBox="0 0 24 24"><path d="M4 7h9M19 7h1M4 17h3M13 17h7"/><circle cx="16" cy="7" r="2.5"/><circle cx="10" cy="17" r="2.5"/></svg></button></header>
-  <div id="kinds"><button data-kind="photo" class="on">Photos</button><button data-kind="video">Vidéos</button></div>
+  <div id="kinds" hidden><button data-kind="photo" class="on">Photos</button><button data-kind="video">Vidéos</button></div>
   <button id="vjob" hidden></button>
   <div id="upd" hidden><div><b id="updTitle"></b><small id="updNotes"></small></div><button class="btn primary" id="btnUpd">Installer</button></div>
   <div id="gScroll">
@@ -210,7 +229,7 @@ button{font:inherit;color:inherit;background:none;border:0;padding:0;cursor:poin
     </div>
     <div id="webPick" class="empty" hidden>
       <p>Choisis les photos d'un même bien.</p>
-      <label class="btn primary">Choisir des photos<input type="file" id="fileInput" multiple accept="image/*" hidden></label>
+      <label class="btn primary">Choisir des photos<input type="file" id="fileInput" multiple accept="image/*,video/*" hidden></label>
     </div>
     <div id="days"></div>
     <div class="empty" id="moreBox" hidden><button class="btn" id="btnMore">Afficher plus de photos</button></div>
@@ -220,6 +239,20 @@ button{font:inherit;color:inherit;background:none;border:0;padding:0;cursor:poin
     <button class="btn" id="btnClearSel">Annuler</button>
     <button class="btn" id="btnEdit">Retoucher</button>
     <button class="btn primary" id="btnSelMenu" aria-label="Actions">•••</button>
+  </footer>
+</section>
+
+<section id="viewer" class="view" hidden>
+  <div id="vwStage"><img id="vwImg" alt="" draggable="false"><video id="vwVid" playsinline controls hidden></video></div>
+  <header id="vwTop">
+    <button class="vwRound" id="vwBack" aria-label="Retour à la galerie"><svg viewBox="0 0 24 24"><path d="M14.5 5.5 8 12l6.5 6.5"/></svg></button>
+    <div id="vwTitle"></div>
+  </header>
+  <footer id="vwBar">
+    <button id="vwShare"><svg viewBox="0 0 24 24"><path d="M12 15V4M8 7.5 12 3.5l4 4M6 11.5v7.5h12v-7.5"/></svg><span>Partager</span></button>
+    <button id="vwEdit"><svg viewBox="0 0 24 24"><path d="M4 7h9M19 7h1M4 17h3M13 17h7"/><circle cx="16" cy="7" r="2.5"/><circle cx="10" cy="17" r="2.5"/></svg><span>Modifier</span></button>
+    <button id="vwInfo"><svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="8.5"/><path d="M12 11v5.5M12 7.700v.2"/></svg><span>Infos</span></button>
+    <button id="vwDel"><svg viewBox="0 0 24 24"><path d="M5 7h14M10 7V4.5h4V7M7 7l.8 12.5h8.400L17 7M10 10.5v6M14 10.5v6"/></svg><span>Supprimer</span></button>
   </footer>
 </section>
 
@@ -839,7 +872,7 @@ function renderGallery() {
       c.addEventListener('pointermove', e => { if (Math.hypot(e.clientX - sx, e.clientY - sy) > 10) clearTimeout(lpT); });
       ['pointerup', 'pointercancel', 'pointerleave'].forEach(ev => c.addEventListener(ev, () => clearTimeout(lpT)));
       c.addEventListener('contextmenu', e => e.preventDefault());
-      c.onclick = () => { if (lpDone) { lpDone = false; return; } if (S.selMode) toggle(); else openEditor([p]); };
+      c.onclick = () => { if (lpDone) { lpDone = false; return; } if (S.selMode) toggle(); else openViewer(p); };
       g.appendChild(c);
     }
     box.appendChild(h); box.appendChild(g);
@@ -852,8 +885,9 @@ function updSelBar() {
   $('days').classList.toggle('selmode', !!S.selMode);
   const n = S.selected.size;
   $('selBar').hidden = !S.selMode || n === 0;
-  $('btnEdit').hidden = S.kind === 'video';
-  const w = S.kind === 'video' ? ' vidéo' : ' photo';
+  const sl = selList(), nv = sl.filter(isVid).length;
+  $('btnEdit').hidden = nv > 0;
+  const w = nv === 0 ? ' photo' : nv === sl.length ? ' vidéo' : ' élément';
   $('selCount').textContent = n + w + (n > 1 ? 's' : '');
 }
 /* ---------- Mémoire des photos déjà retouchées (conservée entre deux ouvertures) ---------- */
@@ -884,11 +918,23 @@ function memApply(p) {
   if (m.mode === 'copy') { p.settings = normSettings(m.settings); p.geo = m.geo || newGeo(); }
   else if (backupIds.has(p.id)) { p.settings = normSettings(m.settings); p.geo = m.geo || newGeo(); p.useBackup = true; }
 }
+// photos et vidéos dans une seule liste, de la plus récente à la plus ancienne
+function fetchMedia(offset, n) {
+  let list = null;
+  try { list = JSON.parse(A.listMedia ? A.listMedia(offset, n) : A.listPhotos(offset, n)); } catch (e) {}
+  if (!Array.isArray(list)) { if (list && list.error) toast('Erreur de lecture de la galerie : ' + list.error, 5000); return null; }
+  return list;
+}
+function newItem(it) {
+  const p = { id: it.id, name: it.name, date: it.date, settings: null, geo: newGeo() };
+  if (it.kind === 'video') { p.kind = 'video'; p.duration = it.duration; }
+  memApply(p);
+  return p;
+}
 function loadAndroidPage() {
-  let list = [];
-  try { list = JSON.parse(A.listPhotos(S.offset, S.pageSize)); } catch (e) { toast('Erreur de lecture des photos'); }
+  const list = fetchMedia(S.offset, S.pageSize) || [];
   for (const it of list) {
-    if (!S.all.has(it.id)) { const ph = { id: it.id, name: it.name, date: it.date, settings: null, geo: newGeo() }; memApply(ph); S.all.set(it.id, ph); S.order.push(it.id); }
+    if (!S.all.has(it.id)) { const ph = newItem(it); S.all.set(it.id, ph); S.order.push(it.id); }
   }
   S.offset += list.length; S.hasMore = list.length === S.pageSize; S.ploaded = true;
   renderGallery();
@@ -936,34 +982,22 @@ for (const b of $('kinds').children) b.onclick = () => {
 let resumeT = null, needRefresh = false;
 function refreshGallery() {
   if (!A || !A.hasPermission()) return;
-  if (!$('editor').hidden) { needRefresh = true; return; }       // pas pendant une retouche : ce sera fait à la sortie
+  if (!$('editor').hidden || !$('viewer').hidden) { needRefresh = true; return; }       // pas pendant une retouche : ce sera fait à la sortie
   needRefresh = false;
   let changed = false;
   // on relit la partie déjà chargée et on la remplace : l'ordre et le contenu suivent exactement le téléphone
-  const sync = (json, old, video) => {
-    let list = null; try { list = JSON.parse(json); } catch (e) {}
-    if (!Array.isArray(list)) return null;
+  const sync = (list, old) => {
+    if (!list) return null;
     const ids = [];
-    for (const it of list) {
-      if (!S.all.has(it.id)) {
-        const p = { id: it.id, name: it.name, date: it.date, settings: null, geo: newGeo() };
-        if (video) { p.kind = 'video'; p.duration = it.duration; }
-        memApply(p); S.all.set(it.id, p);
-      }
-      ids.push(it.id);
-    }
+    for (const it of list) { if (!S.all.has(it.id)) S.all.set(it.id, newItem(it)); ids.push(it.id); }
     const keep = new Set(ids);
     for (const id of old) if (!keep.has(id)) { S.all.delete(id); S.selected.delete(id); }
     if (ids.length !== old.length || ids.some((x, i) => x !== old[i])) changed = true;
     return ids;
   };
   if (S.ploaded) {
-    const n = Math.max(S.offset, S.pageSize), ids = sync(A.listPhotos(0, n), S.order, false);
+    const n = Math.max(S.offset, S.pageSize), ids = sync(fetchMedia(0, n), S.order);
     if (ids) { S.order = ids; S.offset = ids.length; S.hasMore = ids.length === n; }
-  }
-  if (S.vloaded && A.hasVideoPermission && A.hasVideoPermission()) {
-    const n = Math.max(S.voffset, S.pageSize), ids = sync(A.listVideos(0, n), S.vorder, true);
-    if (ids) { S.vorder = ids; S.voffset = ids.length; S.vhasMore = ids.length === n; }
   }
   if (!S.selected.size) S.selMode = false;
   if (changed) renderGallery();
@@ -975,22 +1009,158 @@ function initGallery() {
     $('btnBackups').hidden = false;
     if (!A.hasPermission()) { $('permBox').hidden = false; return; }
     $('permBox').hidden = true; loadAndroidPage();
+    // les vidéos demandent une autorisation à part : on la demande une fois
+    if (A.hasVideoPermission && !A.hasVideoPermission() && !LS.get('vpAsked', false)) { LS.set('vpAsked', true); A.requestPermission(); }
   } else {
     $('webPick').hidden = false;
   }
 }
 window.onPermissions = granted => {
-  if (S.kind === 'video') { permAsked = true; return openVideoTab(); }
-  if (granted) { $('permBox').hidden = true; loadAndroidPage(); } else toast("Sans l'accès aux photos, l'appli ne peut rien faire."); };
+  if (granted) { $('permBox').hidden = true; if (S.ploaded) refreshGallery(); else loadAndroidPage(); } else toast("Sans l'accès aux photos, l'appli ne peut rien faire."); };
 $('btnPerm').onclick = () => { if (S.kind === 'video' && permAsked) A.openSettings(); else A.requestPermission(); };
 $('btnMore').onclick = () => S.kind === 'video' ? loadVideoPage() : loadAndroidPage();
 $('btnClearSel').onclick = () => { S.selected.clear(); S.selMode = false; renderGallery(); };
 $('fileInput').onchange = e => {
   const files = [...e.target.files]; if (!files.length) return;
-  const vk = S.kind === 'video';
-  for (const f of files) { const id = 'f' + Math.random().toString(36).slice(2); S.all.set(id, { id, kind: vk ? 'video' : 'photo', name: f.name, date: f.lastModified, file: f, settings: null, geo: newGeo() }); curOrder().push(id); if (!vk) S.selected.add(id); }
-  S.selMode = !vk; e.target.value = ''; renderGallery();
+  for (const f of files) { const vk = /^video\//.test(f.type); const id = 'f' + Math.random().toString(36).slice(2); S.all.set(id, { id, kind: vk ? 'video' : 'photo', name: f.name, date: f.lastModified, file: f, settings: null, geo: newGeo() }); curOrder().push(id); if (!window.__noAutoSel && !vk) S.selected.add(id); }
+  S.selMode = S.selected.size > 0; e.target.value = ''; renderGallery();
 };
+
+/* ---------- Visionneuse : la photo ou la vidéo en grand, avant toute retouche ---------- */
+const V = { id: null, s: 1, x: 0, y: 0, fromViewer: false };
+const vwP = () => S.all.get(V.id);
+const viewUrl = p => p.file ? (p._url ||= URL.createObjectURL(p.file)) : '/media/view/' + p.id + '?v=' + (p.v || 0);
+function vwApply() {
+  const im = $('vwImg'), st = $('vwStage');
+  const mx = Math.max(0, (im.offsetWidth * V.s - st.clientWidth) / 2), my = Math.max(0, (im.offsetHeight * V.s - st.clientHeight) / 2);
+  if (V.s > 1) { V.x = clamp(V.x, -mx, mx); V.y = clamp(V.y, -my, my); }
+  im.style.transform = `translate(${V.x}px,${V.y}px) scale(${V.s})`;
+}
+function vwStopVideo() { const v = $('vwVid'); try { v.pause(); v.removeAttribute('src'); v.load(); } catch (e) {} v.hidden = true; }
+function vwShow(dir) {
+  const p = vwP(); if (!p) return closeViewer();
+  const im = $('vwImg'), st = $('vwStage'), vid = isVid(p);
+  V.s = 1; V.x = 0; V.y = 0; vwApply();
+  $('viewer').classList.toggle('isvid', vid);
+  const d = new Date(p.date);
+  $('vwTitle').innerHTML = fmtDay(p.date).replace(/^./, c => c.toUpperCase()) + '<small>' + d.toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' }) + (p.saved ? ' · retouchée' : '') + '</small>';
+  vwStopVideo();
+  if (vid) {
+    im.hidden = true; st.style.backgroundImage = '';
+    const v = $('vwVid'); v.hidden = false; if (!p.file) v.poster = '/media/thumb/' + p.id + '?v=' + (p.v || 0); v.src = p.file ? videoUrl(p) : '/media/video/full/' + p.id + '?v=' + (p.v || 0);
+  } else {
+    im.hidden = false; im.style.opacity = 0;
+    st.style.backgroundImage = p.file ? '' : `url("/media/thumb/${p.id}?v=${p.v || 0}")`;     // la vignette en attendant l'image nette
+    im.onload = () => { im.style.opacity = 1; st.style.backgroundImage = ''; };
+    im.src = viewUrl(p);
+    // on prépare les voisines pour un passage instantané
+    const i = S.order.indexOf(V.id);
+    for (const k of [i + 1, i - 1]) { const q = S.all.get(S.order[k]); if (q && !isVid(q)) new Image().src = viewUrl(q); }
+  }
+  if (dir) st.animate([{ transform: `translateX(${dir * 70}px)`, opacity: .3 }, { transform: 'none', opacity: 1 }], { duration: 170, easing: 'ease-out' });
+}
+function openViewer(p) {
+  V.id = p.id; $('gallery').hidden = true; $('viewer').hidden = false; $('viewer').classList.remove('nochrome'); vwShow(0);
+}
+function closeViewer() {
+  vwStopVideo(); $('vwImg').removeAttribute('src');
+  $('viewer').hidden = true; $('gallery').hidden = false; V.id = null;
+  if (needRefresh) refreshGallery(); else renderGallery();
+}
+function vwGo(d) {
+  const i = S.order.indexOf(V.id) + d;
+  if (i < 0 || i >= S.order.length) { V.x = 0; vwApply(); return; }
+  V.id = S.order[i]; vwShow(d);
+  if (A && S.hasMore && i > S.order.length - 12) loadAndroidPage();        // on charge la suite en approchant de la fin
+}
+$('vwBack').onclick = closeViewer;
+$('vwEdit').onclick = () => { const p = vwP(); if (!p) return; V.fromViewer = true; vwStopVideo(); $('viewer').hidden = true; openEditor([p]); };
+$('vwShare').onclick = () => { const p = vwP(); if (A && A.share && p) A.share(p.id); else toast("Le partage se fait dans l'appli Android"); };
+$('vwInfo').onclick = () => {
+  const p = vwP(); if (!p) return;
+  let i = {}; try { if (A && A.mediaInfo) i = JSON.parse(A.mediaInfo(p.id)); } catch (e) {}
+  const row = (k, v) => v ? `<div class="irow"><span>${k}</span><span>${String(v).replace(/</g, '&lt;')}</span></div>` : '';
+  const mo = i.size ? (i.size / 1048576 >= 1 ? (i.size / 1048576).toFixed(1).replace('.', ',') + ' Mo' : Math.round(i.size / 1024) + ' Ko') : '';
+  sheet(`<h2>Infos</h2>
+    ${row('Nom', i.name || p.name)}
+    ${row('Date', new Date(i.date || p.date).toLocaleString('fr-FR', { dateStyle: 'full', timeStyle: 'short' }))}
+    ${row('Dimensions', i.width && i.height ? i.width + ' × ' + i.height + ' px' : '')}
+    ${row('Durée', isVid(p) && (i.duration || p.duration) ? fmtDur(i.duration || p.duration) : '')}
+    ${row('Taille', mo)}
+    ${row('Dossier', i.folder)}
+    ${row('Lieu', i.lat != null ? i.lat.toFixed(5) + ', ' + i.lon.toFixed(5) : 'non enregistré')}
+    ${row('Halo', p.saved ? 'retouchée (originale gardée 30 jours)' : '')}
+    <div class="srow">${i.lat != null ? '<button class="btn" id="inMap">Voir sur la carte</button>' : ''}<button class="btn primary" onclick="closeSheet()">OK</button></div>`);
+  if ($('inMap')) $('inMap').onclick = () => A.openMap(i.lat, i.lon);
+};
+/* suppression : corbeille d'Android (récupérable 30 jours) */
+let trashIds = null;
+function askTrash(ids) {
+  if (!A || !A.trash || !ids.length) return;
+  const n = ids.length;
+  sheet(`<h2>Supprimer ${n > 1 ? 'ces ' + n + ' éléments' : 'cet élément'} ?</h2><p>${n > 1 ? 'Ils partent' : 'Il part'} dans la corbeille d'Android, où ${n > 1 ? 'ils restent récupérables' : 'il reste récupérable'} 30 jours.</p>
+    <div class="srow"><button class="btn" onclick="closeSheet()">Annuler</button><button class="btn primary" id="trGo">Supprimer</button></div>`);
+  $('trGo').onclick = () => { closeSheet(); trashIds = ids; A.trash(JSON.stringify(ids)); };
+}
+window.onTrashResult = ok => {
+  const ids = trashIds || []; trashIds = null;
+  if (!ok) return toast('Suppression annulée');
+  const i = S.order.indexOf(V.id);
+  for (const id of ids) { S.all.delete(id); S.selected.delete(id); memForget(id); }
+  S.order = S.order.filter(id => S.all.has(id)); S.offset = Math.max(0, S.offset - ids.length);
+  if (!S.selected.size) S.selMode = false;
+  toast(ids.length > 1 ? ids.length + ' éléments supprimés' : 'Supprimé');
+  if (!$('viewer').hidden) { if (!S.order.length) return closeViewer(); V.id = S.order[Math.min(i, S.order.length - 1)]; vwShow(-1); }
+  else renderGallery();
+};
+$('vwDel').onclick = () => { const p = vwP(); if (!p) return; if (!A) return toast("La suppression se fait dans l'appli Android"); askTrash([p.id]); };
+/* gestes : glisser = suivante / précédente, pincer et double-tap = zoom, appui = afficher / masquer les boutons */
+(() => {
+  const st = $('vwStage'), pts = new Map(); let g = null, pinch = null, lastTap = 0, tapT = null;
+  const dist = () => { const [a, b] = [...pts.values()]; return Math.hypot(a.x - b.x, a.y - b.y) || 1; };
+  const mid = () => { const [a, b] = [...pts.values()]; return { x: (a.x + b.x) / 2, y: (a.y + b.y) / 2 }; };
+  st.addEventListener('pointerdown', e => {
+    const vid = isVid(vwP());
+    if (vid && e.clientY > st.getBoundingClientRect().bottom - 90) return;      // zone des commandes de lecture
+    pts.set(e.pointerId, { x: e.clientX, y: e.clientY });
+    if (pts.size === 1) g = { x: e.clientX, y: e.clientY, vx: V.x, vy: V.y, t: Date.now(), moved: false, vid };
+    else if (pts.size === 2 && !vid) { pinch = { d: dist(), s: V.s, m: mid(), vx: V.x, vy: V.y }; if (g) g.moved = true; }
+  });
+  st.addEventListener('pointermove', e => {
+    if (!pts.has(e.pointerId)) return;
+    pts.set(e.pointerId, { x: e.clientX, y: e.clientY });
+    if (pts.size === 2 && pinch) { const c = mid(); V.s = clamp(pinch.s * dist() / pinch.d, 1, 6); V.x = pinch.vx + c.x - pinch.m.x; V.y = pinch.vy + c.y - pinch.m.y; vwApply(); }
+    else if (pts.size === 1 && g) {
+      const dx = e.clientX - g.x, dy = e.clientY - g.y;
+      if (Math.hypot(dx, dy) > 8) g.moved = true;
+      if (!g.moved) return;
+      if (V.s > 1) { V.x = g.vx + dx; V.y = g.vy + dy; vwApply(); }
+      else if (Math.abs(dx) > Math.abs(dy)) { V.x = dx; V.y = 0; if (!g.vid) vwApply(); }
+    }
+  });
+  const up = e => {
+    if (!pts.has(e.pointerId)) return;
+    pts.delete(e.pointerId);
+    if (pts.size === 1) { const q = [...pts.values()][0]; g = { x: q.x, y: q.y, vx: V.x, vy: V.y, t: Date.now(), moved: true }; pinch = null; return; }
+    if (pts.size || !g) return;
+    const dx = e.clientX - g.x, dy = e.clientY - g.y, was = g; g = null; pinch = null;
+    if (V.s <= 1.02) {
+      V.s = 1;
+      if (was.moved && Math.abs(dx) > 60 && Math.abs(dx) > Math.abs(dy) * 1.2) { V.x = 0; V.y = 0; return vwGo(dx < 0 ? 1 : -1); }
+      V.x = 0; V.y = 0; vwApply();
+    }
+    if (!was.moved && e.type === 'pointerup' && !was.vid) {
+      const now = Date.now();
+      if (now - lastTap < 300) {                       // double-tap : zoom sur le point touché
+        clearTimeout(tapT); lastTap = 0;
+        if (V.s > 1) { V.s = 1; V.x = 0; V.y = 0; }
+        else { const r = st.getBoundingClientRect(); V.s = 2.5; V.x = -(e.clientX - r.left - r.width / 2) * 1.5; V.y = -(e.clientY - r.top - r.height / 2) * 1.5; }
+        vwApply();
+      } else { lastTap = now; tapT = setTimeout(() => $('viewer').classList.toggle('nochrome'), 280); }
+    }
+  };
+  st.addEventListener('pointerup', up); st.addEventListener('pointercancel', up);
+})();
 
 /* ---------- Éditeur ---------- */
 const curP = () => S.batch[S.cur];
@@ -1027,6 +1197,11 @@ function closeEditor() {
   clearTimeout(histT); for (const p of S.batch) { p._h = null; }
   if (RV) RV.release();
   for (const p of S.batch) { if (p.preview) { p.preview.close(); p.preview = null; } }
+  if (V.fromViewer) {                                // on venait de la visionneuse : on y retourne
+    V.fromViewer = false;
+    if (S.all.has(V.id)) { $('gallery').hidden = true; $('viewer').hidden = false; vwShow(0); return; }
+    V.id = null;
+  }
   renderGallery();
   if (needRefresh) refreshGallery();
 }
@@ -1495,12 +1670,14 @@ $('btnEdit').onclick = () => openEditor();
 /* --- menu ••• de la sélection : coller un réglage sur plusieurs photos sans les ouvrir --- */
 $('btnSelMenu').onclick = () => {
   const list = selList(), n = list.length, pr = LS.get('preset', null);
-  const wd = S.kind === 'video' ? 'vidéo' : 'photo';
-  sheet(`<h2>${n} ${wd}${n > 1 ? 's' : ''} sélectionnée${n > 1 ? 's' : ''}</h2>
+  const nv = list.filter(isVid).length, wd = nv === 0 ? 'photo' : nv === n ? 'vidéo' : 'élément';
+  sheet(`<h2>${n} ${wd}${n > 1 ? 's' : ''}</h2>
     <button class="mitem" id="smPaste" ${S.clip ? '' : 'disabled'}>Coller le réglage${S.clip ? '' : ' (copie d\'abord un réglage dans une photo)'}</button>
     <button class="mitem" id="smPreset" ${pr ? '' : 'disabled'}>Appliquer mon réglage préféré</button>
-    <button class="mitem" id="smEdit" ${S.kind === 'video' ? 'hidden' : ''}>Retoucher ensemble</button>
+    <button class="mitem" id="smEdit" ${nv ? 'hidden' : ''}>Retoucher ensemble</button>
     <button class="mitem" id="smRevert" ${list.some(canRevert) ? '' : 'hidden'}>Rétablir les originales (annuler les retouches)</button>`);
+  $('sheet').insertAdjacentHTML('beforeend', `<button class="mitem" id="smDel" ${A ? '' : 'hidden'}>Supprimer</button>`);
+  $('smDel').onclick = () => { closeSheet(); askTrash(list.map(p => p.id)); };
   $('smRevert').onclick = async () => { closeSheet(); await restoreIds(list.filter(canRevert).map(p => p.id)); S.selected.clear(); S.selMode = false; renderGallery(); };
   const paste = src => { closeSheet(); for (const p of list) p.settings = normSettings(clone(src)); askSave(list, ok => { if (ok) { S.selected.clear(); S.selMode = false; } renderGallery(); }); };
   $('smPaste').onclick = () => paste(S.clip);
@@ -1702,6 +1879,12 @@ async function storeImage(p, out, srcBlob, mode) {
 }
 
 async function saveAll(list, mode) {
+  const vids = list.filter(isVid);
+  if (vids.length && vids.length < list.length) {              // sélection mixte : les photos d'abord, puis les vidéos
+    const ok1 = await saveAll(list.filter(p => !isVid(p)), mode);
+    const ok2 = await saveVideos(vids, mode);
+    return ok1 && ok2;
+  }
   if (isVid(list[0])) return saveVideos(list, mode);
   if (A && mode === 'replace') {
     busy(true, 'Confirmation Android…', 0);
@@ -1792,6 +1975,7 @@ window.appBack = () => {
   if (!$('sheetWrap').hidden) { closeSheet(); return true; }
   if (!$('editor').hidden && $('editor').classList.contains('fs')) { setFs(false); return true; }
   if (!$('editor').hidden) { leaveEditor(); return true; }
+  if (!$('viewer').hidden) { closeViewer(); return true; }
   if (S.selMode) { $('btnClearSel').click(); return true; }
   return false;
 };
@@ -1830,7 +2014,7 @@ window.onUpdateProgress = p => {
 $('btnUpd').onclick = () => { $('btnUpd').disabled = true; $('btnUpd').textContent = '0 %'; A.installUpdate(); };
 $('ver').onclick = () => { if (!A) return; updManual = true; toast('Recherche de mise à jour…', 1500); A.checkUpdate(); };
 if (A) { try { $('ver').textContent = 'v' + A.getVersion(); } catch (e) {} setTimeout(() => A.checkUpdate && A.checkUpdate(), 800); }
-window.__RL = { S, effective, geomFor, analyzeAuto, renderFull, transplantExif, openEditor, selectPhoto };
+window.__RL = { S, V, effective, geomFor, analyzeAuto, renderFull, transplantExif, openEditor, selectPhoto };
 </script>
 </body>
 </html>
