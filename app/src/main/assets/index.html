@@ -929,27 +929,41 @@ for (const b of $('kinds').children) b.onclick = () => {
   if (A && S.kind === 'video') openVideoTab(); else { if (A && !A.hasPermission()) showPerm(false); renderGallery(); }
   $('gScroll').scrollTop = 0;
 };
-/* Retour dans l'appli : on ajoute en tête les photos et vidéos prises entre-temps */
-let resumeT = null;
+/* Retour dans l'appli : la galerie se remet à jour (photos prises entre-temps ajoutées, photos supprimées retirées) */
+let resumeT = null, needRefresh = false;
 function refreshGallery() {
   if (!A || !A.hasPermission()) return;
-  let added = 0;
-  const merge = (json, order, video) => {
-    let list = []; try { list = JSON.parse(json); } catch (e) {}
-    if (!Array.isArray(list)) return 0;
-    const fresh = [];
+  if (!$('editor').hidden) { needRefresh = true; return; }       // pas pendant une retouche : ce sera fait à la sortie
+  needRefresh = false;
+  let changed = false;
+  // on relit la partie déjà chargée et on la remplace : l'ordre et le contenu suivent exactement le téléphone
+  const sync = (json, old, video) => {
+    let list = null; try { list = JSON.parse(json); } catch (e) {}
+    if (!Array.isArray(list)) return null;
+    const ids = [];
     for (const it of list) {
-      if (S.all.has(it.id)) continue;
-      const p = { id: it.id, name: it.name, date: it.date, settings: null, geo: newGeo() };
-      if (video) { p.kind = 'video'; p.duration = it.duration; }
-      memApply(p); S.all.set(it.id, p); fresh.push(it.id);
+      if (!S.all.has(it.id)) {
+        const p = { id: it.id, name: it.name, date: it.date, settings: null, geo: newGeo() };
+        if (video) { p.kind = 'video'; p.duration = it.duration; }
+        memApply(p); S.all.set(it.id, p);
+      }
+      ids.push(it.id);
     }
-    order.unshift(...fresh);
-    return fresh.length;
+    const keep = new Set(ids);
+    for (const id of old) if (!keep.has(id)) { S.all.delete(id); S.selected.delete(id); }
+    if (ids.length !== old.length || ids.some((x, i) => x !== old[i])) changed = true;
+    return ids;
   };
-  if (S.ploaded) { const n = merge(A.listPhotos(0, S.pageSize), S.order, false); S.offset += n; added += n; }
-  if (S.vloaded && A.hasVideoPermission && A.hasVideoPermission()) { const n = merge(A.listVideos(0, S.pageSize), S.vorder, true); S.voffset += n; added += n; }
-  if (added && !$('gallery').hidden) renderGallery();
+  if (S.ploaded) {
+    const n = Math.max(S.offset, S.pageSize), ids = sync(A.listPhotos(0, n), S.order, false);
+    if (ids) { S.order = ids; S.offset = ids.length; S.hasMore = ids.length === n; }
+  }
+  if (S.vloaded && A.hasVideoPermission && A.hasVideoPermission()) {
+    const n = Math.max(S.voffset, S.pageSize), ids = sync(A.listVideos(0, n), S.vorder, true);
+    if (ids) { S.vorder = ids; S.voffset = ids.length; S.vhasMore = ids.length === n; }
+  }
+  if (!S.selected.size) S.selMode = false;
+  if (changed) renderGallery();
 }
 window.onAppResume = () => { clearTimeout(resumeT); resumeT = setTimeout(refreshGallery, 250); };
 document.addEventListener('visibilitychange', () => { if (!document.hidden) window.onAppResume(); });
@@ -1007,6 +1021,7 @@ function closeEditor() {
   if (RV) RV.release();
   for (const p of S.batch) { if (p.preview) { p.preview.close(); p.preview = null; } }
   renderGallery();
+  if (needRefresh) refreshGallery();
 }
 function buildStrip() {
   const st = $('strip'); st.innerHTML = '';
