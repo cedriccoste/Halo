@@ -105,11 +105,14 @@ button{font:inherit;color:inherit;background:none;border:0;padding:0;cursor:poin
 #btnFs{padding:8px 10px!important;display:grid;place-items:center}
 #btnFs svg,#btnFsExit svg{width:20px;height:20px;fill:none;stroke:currentColor;stroke-width:1.8;stroke-linecap:round;stroke-linejoin:round;display:block}
 #btnFsExit{position:absolute;right:12px;top:calc(12px + env(safe-area-inset-top));z-index:7;width:40px;height:40px;border-radius:50%;display:grid;place-items:center;background:rgba(20,20,24,.45);backdrop-filter:blur(14px);-webkit-backdrop-filter:blur(14px);color:#fff}
-#histBtns{position:absolute;z-index:7;top:9px;left:116px;display:flex;gap:6px}
+#histBtns{position:absolute;z-index:7;top:9px;left:60px;display:flex;gap:6px}
 #histBtns button{width:38px;height:38px;border-radius:50%;display:grid;place-items:center;background:rgba(30,30,34,.55);backdrop-filter:blur(14px);-webkit-backdrop-filter:blur(14px);color:#fff;transition:opacity .15s}
 #histBtns button:disabled{opacity:.3}
 #histBtns svg{width:20px;height:20px;fill:none;stroke:currentColor;stroke-width:1.9;stroke-linecap:round;stroke-linejoin:round;display:block}
-#editor>.bar #btnBack{margin-right:86px}
+#editor>.bar #btnBack{margin-right:86px;width:38px;height:38px;padding:0;display:grid;place-items:center;flex:none}
+#btnBack svg{width:20px;height:20px;fill:none;stroke:currentColor;stroke-width:2;stroke-linecap:round;stroke-linejoin:round;display:block}
+#editor>.bar{gap:8px;padding-left:14px;padding-right:14px}
+#editor>.bar .btn{flex:none}
 .fs #histBtns{left:auto;right:62px;top:calc(13px + env(safe-area-inset-top))}
 /* plein écran : la photo prend tout l'écran, les réglages flottent par-dessus */
 .fs>.bar,.fs #tabs,.fs:not(.isvid) #row{display:none}
@@ -222,7 +225,7 @@ button{font:inherit;color:inherit;background:none;border:0;padding:0;cursor:poin
 
 <section id="editor" class="view" hidden>
   <header class="bar">
-    <button class="btn ghost" id="btnBack">‹ Photos</button>
+    <button class="btn ghost" id="btnBack" aria-label="Retour à la galerie"><svg viewBox="0 0 24 24"><path d="M14.5 5.5 8 12l6.5 6.5"/></svg></button>
     <span class="sp" id="counter"></span>
     <button class="btn ghost" id="btnFs" aria-label="Plein écran"><svg viewBox="0 0 24 24"><path d="M4 9V4h5M20 9V4h-5M4 15v5h5M20 15v5h-5"/></svg></button>
     <button class="btn primary" id="btnSave">Enregistrer</button>
