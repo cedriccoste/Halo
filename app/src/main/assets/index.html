@@ -1006,11 +1006,15 @@ async function openEditor(list) {
     if (S.tool === 'definition' || S.tool === 'noise') S.tool = 'exposure';
     if (S.tab === 'pCrop') $('tabs').querySelector('[data-tab=pAdjust]').click();
   }
+  // à chaque ouverture : onglet Ajuster, réglage Auto sélectionné, bande d'icônes revenue tout à gauche
+  S.zone = false; S.tool = 'auto';
+  if (S.tab !== 'pAdjust') $('tabs').querySelector('[data-tab=pAdjust]').click();
   $('editor').classList.toggle('isvid', vid);
   const one = S.batch.length === 1;
   $('strip').hidden = one; $('btnApplyAll').hidden = one; $('btnCopy1').hidden = !one || vid; $('rowSp').hidden = !one || vid; $('vbar').hidden = !vid;
   for (const p of S.batch) if (p.saved && p.savedSig === undefined) p.savedSig = sig(p);
   $('gallery').hidden = true; $('editor').hidden = false;
+  $('tools').scrollLeft = 0;
   buildStrip();
   busy(true, 'Préparation…', 0);
   for (let i = 0; i < S.batch.length; i++) { try { await ensureThumb(S.batch[i]); } catch (e) {} busy(true, 'Préparation…', (i + 1) / S.batch.length); drawStripThumb(S.batch[i]); }
