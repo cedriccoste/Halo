@@ -887,7 +887,7 @@ function loadAndroidPage() {
   for (const it of list) {
     if (!S.all.has(it.id)) { const ph = { id: it.id, name: it.name, date: it.date, settings: null, geo: newGeo() }; memApply(ph); S.all.set(it.id, ph); S.order.push(it.id); }
   }
-  S.offset += list.length; S.hasMore = list.length === S.pageSize;
+  S.offset += list.length; S.hasMore = list.length === S.pageSize; S.ploaded = true;
   renderGallery();
 }
 function loadVideoPage() {
@@ -929,6 +929,30 @@ for (const b of $('kinds').children) b.onclick = () => {
   if (A && S.kind === 'video') openVideoTab(); else { if (A && !A.hasPermission()) showPerm(false); renderGallery(); }
   $('gScroll').scrollTop = 0;
 };
+/* Retour dans l'appli : on ajoute en tête les photos et vidéos prises entre-temps */
+let resumeT = null;
+function refreshGallery() {
+  if (!A || !A.hasPermission()) return;
+  let added = 0;
+  const merge = (json, order, video) => {
+    let list = []; try { list = JSON.parse(json); } catch (e) {}
+    if (!Array.isArray(list)) return 0;
+    const fresh = [];
+    for (const it of list) {
+      if (S.all.has(it.id)) continue;
+      const p = { id: it.id, name: it.name, date: it.date, settings: null, geo: newGeo() };
+      if (video) { p.kind = 'video'; p.duration = it.duration; }
+      memApply(p); S.all.set(it.id, p); fresh.push(it.id);
+    }
+    order.unshift(...fresh);
+    return fresh.length;
+  };
+  if (S.ploaded) { const n = merge(A.listPhotos(0, S.pageSize), S.order, false); S.offset += n; added += n; }
+  if (S.vloaded && A.hasVideoPermission && A.hasVideoPermission()) { const n = merge(A.listVideos(0, S.pageSize), S.vorder, true); S.voffset += n; added += n; }
+  if (added && !$('gallery').hidden) renderGallery();
+}
+window.onAppResume = () => { clearTimeout(resumeT); resumeT = setTimeout(refreshGallery, 250); };
+document.addEventListener('visibilitychange', () => { if (!document.hidden) window.onAppResume(); });
 function initGallery() {
   if (A) {
     $('btnBackups').hidden = false;

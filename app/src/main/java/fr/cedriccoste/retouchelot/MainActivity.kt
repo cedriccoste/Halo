@@ -143,6 +143,12 @@ class MainActivity : ComponentActivity() {
         })
     }
 
+    /** Retour dans l'appli (elle était en arrière-plan) : l'éditeur recharge les nouvelles photos. */
+    override fun onResume() {
+        super.onResume()
+        if (::web.isInitialized) js("window.onAppResume && window.onAppResume()")
+    }
+
     private fun js(code: String) = runOnUiThread { web.evaluateJavascript(code, null) }
 
     // ---------------------------------------------------------------- autorisations
