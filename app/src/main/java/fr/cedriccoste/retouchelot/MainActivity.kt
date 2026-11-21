@@ -5,6 +5,7 @@ import android.annotation.SuppressLint
 import android.app.Activity
 import android.content.ContentResolver
 import android.content.ContentUris
+import android.content.ClipData
 import android.content.ContentValues
 import android.content.Intent
 import android.content.pm.PackageManager
@@ -72,6 +73,11 @@ class MainActivity : ComponentActivity() {
 
     private val notifLauncher =
         registerForActivityResult(ActivityResultContracts.RequestPermission()) { }
+
+    private val trashLauncher =
+        registerForActivityResult(ActivityResultContracts.StartIntentSenderForResult()) { res ->
+            js("window.onTrashResult && window.onTrashResult(${res.resultCode == Activity.RESULT_OK})")
+        }
 
     private val writeLauncher =
         registerForActivityResult(ActivityResultContracts.StartIntentSenderForResult()) { res ->
@@ -239,6 +245,105 @@ class MainActivity : ComponentActivity() {
             }
         }
         return out.toString()
+    }
+
+    // ---------------------------------------------------------------- galerie : photos et vidéos mélangées
+
+    private fun listMediaJson(offset: Int, limit: Int): String {
+        val out = JSONArray()
+        val files = MediaStore.Files.getContentUri(MediaStore.VOLUME_EXTERNAL)
+        val proj = arrayOf(
+            MediaStore.Files.FileColumns._ID,
+            MediaStore.Files.FileColumns.MEDIA_TYPE,
+            MediaStore.MediaColumns.DISPLAY_NAME,
+            MediaStore.MediaColumns.DATE_TAKEN,
+            MediaStore.MediaColumns.DATE_ADDED,
+            MediaStore.MediaColumns.DURATION,
+        )
+        val args = Bundle().apply {
+            putString(
+                ContentResolver.QUERY_ARG_SQL_SELECTION,
+                MediaStore.Files.FileColumns.MEDIA_TYPE + " IN (" +
+                    MediaStore.Files.FileColumns.MEDIA_TYPE_IMAGE + "," + MediaStore.Files.FileColumns.MEDIA_TYPE_VIDEO + ")"
+            )
+            putStringArray(ContentResolver.QUERY_ARG_SORT_COLUMNS, arrayOf(MediaStore.MediaColumns.DATE_ADDED))
+            putInt(ContentResolver.QUERY_ARG_SORT_DIRECTION, ContentResolver.QUERY_SORT_DIRECTION_DESCENDING)
+            putInt(ContentResolver.QUERY_ARG_LIMIT, limit)
+            putInt(ContentResolver.QUERY_ARG_OFFSET, offset)
+        }
+        contentResolver.query(files, proj, args, null)?.use { c ->
+            while (c.moveToNext()) {
+                val video = c.getInt(1) == MediaStore.Files.FileColumns.MEDIA_TYPE_VIDEO
+                val taken = if (c.isNull(3)) 0L else c.getLong(3)
+                val added = if (c.isNull(4)) 0L else c.getLong(4) * 1000L
+                out.put(JSONObject().apply {
+                    put("id", (if (video) "v" else "") + c.getLong(0))
+                    put("kind", if (video) "video" else "photo")
+                    put("name", c.getString(2) ?: "")
+                    put("date", if (taken > 0) taken else added)
+                    put("duration", if (c.isNull(5)) 0L else c.getLong(5))
+                })
+            }
+        }
+        return out.toString()
+    }
+
+    /** Photo à la taille de l'écran (décodage réduit, redressée) pour la visionneuse : rapide même à 50 Mpx. */
+    private fun viewJpeg(uri: Uri): ByteArray? {
+        val o = BitmapFactory.Options().apply { inJustDecodeBounds = true }
+        contentResolver.openInputStream(uri)?.use { BitmapFactory.decodeStream(it, null, o) }
+        if (o.outWidth <= 0) return null
+        var sample = 1
+        while (maxOf(o.outWidth, o.outHeight) / (sample * 2) >= 2400) sample *= 2
+        val o2 = BitmapFactory.Options().apply { inSampleSize = sample }
+        var bmp = contentResolver.openInputStream(uri)?.use { BitmapFactory.decodeStream(it, null, o2) } ?: return null
+        val orientation = try {
+            contentResolver.openInputStream(uri)?.use { ExifInterface(it).getAttributeInt(ExifInterface.TAG_ORIENTATION, 1) } ?: 1
+        } catch (e: Exception) { 1 }
+        PhotoEngine.matrixFor(orientation)?.let { m ->
+            val r = Bitmap.createBitmap(bmp, 0, 0, bmp.width, bmp.height, m, true)
+            if (r !== bmp) { bmp.recycle(); bmp = r }
+        }
+        val bos = ByteArrayOutputStream()
+        bmp.compress(Bitmap.CompressFormat.JPEG, 90, bos)
+        bmp.recycle()
+        return bos.toByteArray()
+    }
+
+    private fun mediaInfoJson(id: String): String {
+        val uri = uriFor(id)
+        val j = JSONObject()
+        val proj = arrayOf(
+            MediaStore.MediaColumns.DISPLAY_NAME, MediaStore.MediaColumns.SIZE, MediaStore.MediaColumns.WIDTH,
+            MediaStore.MediaColumns.HEIGHT, MediaStore.MediaColumns.RELATIVE_PATH, MediaStore.MediaColumns.DATE_TAKEN,
+            MediaStore.MediaColumns.DATE_ADDED, MediaStore.MediaColumns.DURATION,
+        )
+        contentResolver.query(uri, proj, null, null, null)?.use { c ->
+            if (c.moveToFirst()) {
+                j.put("name", c.getString(0) ?: "")
+                j.put("size", if (c.isNull(1)) 0L else c.getLong(1))
+                j.put("width", if (c.isNull(2)) 0 else c.getInt(2))
+                j.put("height", if (c.isNull(3)) 0 else c.getInt(3))
+                j.put("folder", c.getString(4) ?: "")
+                val taken = if (c.isNull(5)) 0L else c.getLong(5)
+                j.put("date", if (taken > 0) taken else (if (c.isNull(6)) 0L else c.getLong(6) * 1000L))
+                j.put("duration", if (c.isNull(7)) 0L else c.getLong(7))
+            }
+        }
+        try {
+            if (id.startsWith("v")) {
+                val r = android.media.MediaMetadataRetriever()
+                try {
+                    r.setDataSource(this, uri)
+                    val loc = r.extractMetadata(android.media.MediaMetadataRetriever.METADATA_KEY_LOCATION)
+                    val m = Regex("([+-]\\d+\\.?\\d*)([+-]\\d+\\.?\\d*)").find(loc ?: "")
+                    if (m != null) { j.put("lat", m.groupValues[1].toDouble()); j.put("lon", m.groupValues[2].toDouble()) }
+                } finally { r.release() }
+            } else {
+                openOriginal(uri)?.use { s -> ExifInterface(s).latLong?.let { j.put("lat", it[0]); j.put("lon", it[1]) } }
+            }
+        } catch (e: Exception) { }
+        return j.toString()
     }
 
     // ---------------------------------------------------------------- vidéos
@@ -583,6 +688,10 @@ class MainActivity : ComponentActivity() {
                         bmp.recycle()
                         WebResourceResponse("image/jpeg", null, ByteArrayInputStream(bos.toByteArray()))
                     }
+                    "view" -> {
+                        val bytes = viewJpeg(uri) ?: return notFound()
+                        WebResourceResponse("image/jpeg", null, ByteArrayInputStream(bytes))
+                    }
                     "orig" -> {
                         val b = findBackup(id)
                         if (b != null) WebResourceResponse("image/jpeg", null, b.inputStream())
@@ -704,6 +813,49 @@ class MainActivity : ComponentActivity() {
         @JavascriptInterface
         fun restoreBackup(id: String): String =
             try { doRestore(id) } catch (e: Exception) { "err:" + (e.message ?: e.javaClass.simpleName) }
+
+        @JavascriptInterface
+        fun listMedia(offset: Int, limit: Int): String =
+            try { listMediaJson(offset, limit) } catch (e: Exception) {
+                JSONObject().put("error", e.javaClass.simpleName + " : " + (e.message ?: "")).toString()
+            }
+
+        @JavascriptInterface
+        fun mediaInfo(id: String): String = try { mediaInfoJson(id) } catch (e: Exception) { "{}" }
+
+        @JavascriptInterface
+        fun share(id: String) = runOnUiThread {
+            try {
+                val uri = uriFor(id)
+                val send = Intent(Intent.ACTION_SEND).apply {
+                    type = contentResolver.getType(uri) ?: "*/*"
+                    putExtra(Intent.EXTRA_STREAM, uri)
+                    clipData = ClipData.newRawUri(null, uri)
+                    addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
+                }
+                startActivity(Intent.createChooser(send, null))
+            } catch (e: Exception) { }
+        }
+
+        @JavascriptInterface
+        fun openMap(lat: Double, lon: Double) = runOnUiThread {
+            try { startActivity(Intent(Intent.ACTION_VIEW, Uri.parse("geo:$lat,$lon?q=$lat,$lon"))) } catch (e: Exception) { }
+        }
+
+        /** Met des photos / vidéos à la corbeille d'Android (récupérables 30 jours) ; réponse par window.onTrashResult. */
+        @JavascriptInterface
+        fun trash(idsJson: String) {
+            val arr = JSONArray(idsJson)
+            val uris = (0 until arr.length()).map { uriFor(arr.getString(it)) }
+            runOnUiThread {
+                try {
+                    val pi = MediaStore.createTrashRequest(contentResolver, uris, true)
+                    trashLauncher.launch(IntentSenderRequest.Builder(pi.intentSender).build())
+                } catch (e: Exception) {
+                    js("window.onTrashResult && window.onTrashResult(false)")
+                }
+            }
+        }
 
         @JavascriptInterface
         fun listVideos(offset: Int, limit: Int): String =

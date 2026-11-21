@@ -35,7 +35,7 @@ object PhotoEngine {
         "in vec2 p; out vec2 vUv;\n" +
         "void main(){ vUv = vec2(p.x*.5+.5, p.y*.5+.5); gl_Position = vec4(p,0.,1.); }"
 
-    private fun matrixFor(orientation: Int): Matrix? = when (orientation) {
+    fun matrixFor(orientation: Int): Matrix? = when (orientation) {
         ExifInterface.ORIENTATION_FLIP_HORIZONTAL -> Matrix().apply { setScale(-1f, 1f) }
         ExifInterface.ORIENTATION_ROTATE_180 -> Matrix().apply { setRotate(180f) }
         ExifInterface.ORIENTATION_FLIP_VERTICAL -> Matrix().apply { setScale(1f, -1f) }
