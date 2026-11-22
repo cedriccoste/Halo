@@ -378,47 +378,24 @@ class MainActivity : ComponentActivity() {
         return out.toString()
     }
 
-    /** Flux limité à `left` octets (réponses partielles pour le lecteur vidéo). */
-    private class Bounded(private val s: InputStream, private var left: Long) : InputStream() {
-        override fun read(): Int { if (left <= 0) return -1; val r = s.read(); if (r >= 0) left--; return r }
-        override fun read(b: ByteArray, off: Int, len: Int): Int {
-            if (left <= 0) return -1
-            val n = s.read(b, off, minOf(len.toLong(), left).toInt())
-            if (n > 0) left -= n
-            return n
-        }
-        override fun close() = s.close()
-    }
-
     /** /media/video/{full|orig}/{id} — sert la vidéo au lecteur de l'éditeur, avec avance/retour (Range). */
+    @Suppress("UNUSED_PARAMETER")
     private fun videoResponse(rest: String, range: String?): WebResourceResponse {
         val parts = rest.split('/')
         val kind = parts[0]
         val id = parts[1]
         val backup = if (kind == "orig") findBackup(id) else null
         val uri = uriFor(id)
-        val stream: InputStream
-        val total: Long
-        if (backup != null) { stream = FileInputStream(backup); total = backup.length() }
-        else {
-            val afd = contentResolver.openAssetFileDescriptor(uri, "r") ?: throw IllegalStateException("introuvable")
-            total = if (afd.length > 0) afd.length else (queryLong(uri, MediaStore.MediaColumns.SIZE) ?: 0L)
-            stream = afd.createInputStream()
-        }
-        var start = 0L
-        var end = total - 1
-        if (range != null && range.startsWith("bytes=")) {
-            val p = range.substring(6).split('-')
-            start = p[0].toLongOrNull() ?: 0L
-            if (p.size > 1 && p[1].isNotEmpty()) end = minOf(p[1].toLong(), total - 1)
-        }
-        var skip = start
-        while (skip > 0) { val n = stream.skip(skip); if (n <= 0) break; skip -= n }
-        val len = end - start + 1
+        val stream: InputStream =
+            if (backup != null) FileInputStream(backup)
+            else (contentResolver.openAssetFileDescriptor(uri, "r") ?: throw IllegalStateException("introuvable")).createInputStream()
+        // Important : on renvoie le fichier ENTIER, sans rien sauter. Quand le lecteur demande un morceau
+        // (en-tête « Range »), c'est la WebView elle-même qui avance dans ce flux et fabrique la réponse
+        // partielle. Sauter les octets ici en plus les faisait sauter deux fois : les vidéos dont l'index
+        // est en fin de fichier (celles des téléphones) restaient bloquées sur le chargement.
         val mime = (if (backup == null) contentResolver.getType(uri) else null) ?: "video/mp4"
-        val headers = mutableMapOf("Accept-Ranges" to "bytes", "Content-Length" to len.toString())
-        if (range != null) headers["Content-Range"] = "bytes $start-$end/$total"
-        return WebResourceResponse(mime, null, if (range != null) 206 else 200, if (range != null) "Partial Content" else "OK", headers, Bounded(stream, len))
+        // pas d'en-têtes de taille ici non plus : la WebView les calcule elle-même à partir du flux
+        return WebResourceResponse(mime, null, stream)
     }
 
     private fun startVideoJobs(json: String): String {
