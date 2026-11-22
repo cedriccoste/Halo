@@ -688,6 +688,14 @@ class MainActivity : ComponentActivity() {
                         bmp.recycle()
                         WebResourceResponse("image/jpeg", null, ByteArrayInputStream(bos.toByteArray()))
                     }
+                    "poster" -> {
+                        // image d'aperçu d'une vidéo, assez grande pour la visionneuse
+                        val bmp = contentResolver.loadThumbnail(uri, Size(1600, 1600), null)
+                        val bos = ByteArrayOutputStream()
+                        bmp.compress(Bitmap.CompressFormat.JPEG, 88, bos)
+                        bmp.recycle()
+                        WebResourceResponse("image/jpeg", null, ByteArrayInputStream(bos.toByteArray()))
+                    }
                     "view" -> {
                         val bytes = viewJpeg(uri) ?: return notFound()
                         WebResourceResponse("image/jpeg", null, ByteArrayInputStream(bytes))
@@ -819,6 +827,12 @@ class MainActivity : ComponentActivity() {
             try { listMediaJson(offset, limit) } catch (e: Exception) {
                 JSONObject().put("error", e.javaClass.simpleName + " : " + (e.message ?: "")).toString()
             }
+
+        /** Lecture d'une vidéo dans le lecteur plein écran de Halo (tous les formats que le téléphone sait lire). */
+        @JavascriptInterface
+        fun playVideo(id: String) = runOnUiThread {
+            try { startActivity(Intent(this@MainActivity, PlayerActivity::class.java).setData(uriFor(id))) } catch (e: Exception) { }
+        }
 
         @JavascriptInterface
         fun mediaInfo(id: String): String = try { mediaInfoJson(id) } catch (e: Exception) { "{}" }

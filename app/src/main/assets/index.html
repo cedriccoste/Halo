@@ -71,6 +71,8 @@ button{font:inherit;color:inherit;background:none;border:0;padding:0;cursor:poin
 #vwStage{position:absolute;inset:0;overflow:hidden;touch-action:none;display:grid;grid-template:minmax(0,1fr)/minmax(0,1fr);place-items:center;background:center/contain no-repeat}
 #vwImg{width:100%;height:100%;object-fit:contain;display:block;will-change:transform;-webkit-user-select:none;user-select:none;transition:opacity .15s}
 #vwVid{width:100%;height:100%;background:#000}
+#vwPlay{position:absolute;left:50%;top:calc(50% - 39px);transform:translate(-50%,-50%);z-index:4;width:76px;height:76px;border-radius:50%;display:grid;place-items:center;background:rgba(20,20,24,.55);backdrop-filter:blur(14px);-webkit-backdrop-filter:blur(14px);border:1.5px solid rgba(255,255,255,.7)}
+#viewer #vwPlay svg{width:34px;height:34px;fill:#fff;stroke:none;margin-left:4px}
 #vwTop,#vwBar{position:absolute;left:0;right:0;z-index:5;display:flex;align-items:center;transition:opacity .2s}
 #vwTop{top:0;gap:12px;padding:10px 14px 28px;background:linear-gradient(rgba(0,0,0,.6),transparent)}
 #vwTitle{font-size:15px;font-weight:550;text-shadow:0 1px 4px rgba(0,0,0,.8)}
@@ -244,6 +246,7 @@ button{font:inherit;color:inherit;background:none;border:0;padding:0;cursor:poin
 
 <section id="viewer" class="view" hidden>
   <div id="vwStage"><img id="vwImg" alt="" draggable="false"><video id="vwVid" playsinline controls hidden></video></div>
+  <button id="vwPlay" aria-label="Lire la vidéo" hidden><svg viewBox="0 0 24 24"><path d="M8.5 5.5v13l10.5-6.5z"/></svg></button>
   <header id="vwTop">
     <button class="vwRound" id="vwBack" aria-label="Retour à la galerie"><svg viewBox="0 0 24 24"><path d="M14.5 5.5 8 12l6.5 6.5"/></svg></button>
     <div id="vwTitle"></div>
@@ -1043,9 +1046,16 @@ function vwShow(dir) {
   V.s = 1; V.x = 0; V.y = 0; vwApply();
   $('viewer').classList.toggle('isvid', vid);
   const d = new Date(p.date);
-  $('vwTitle').innerHTML = fmtDay(p.date).replace(/^./, c => c.toUpperCase()) + '<small>' + d.toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' }) + (p.saved ? ' · retouchée' : '') + '</small>';
+  $('vwTitle').innerHTML = fmtDay(p.date).replace(/^./, c => c.toUpperCase()) + '<small>' + d.toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' }) + (vid && p.duration ? ' · ' + fmtDur(p.duration) : '') + (p.saved ? ' · retouchée' : '') + '</small>';
   vwStopVideo();
-  if (vid) {
+  const native = vid && A && A.playVideo;            // sur le téléphone : lecteur plein écran de Halo (lit tous les formats)
+  $('vwPlay').hidden = !native;
+  if (native) {
+    im.hidden = false; im.style.opacity = 0;
+    st.style.backgroundImage = `url("/media/thumb/${p.id}?v=${p.v || 0}")`;
+    im.onload = () => { im.style.opacity = 1; st.style.backgroundImage = ''; };
+    im.src = '/media/poster/' + p.id + '?v=' + (p.v || 0);
+  } else if (vid) {
     im.hidden = true; st.style.backgroundImage = '';
     const v = $('vwVid'); v.hidden = false; if (!p.file) v.poster = '/media/thumb/' + p.id + '?v=' + (p.v || 0); v.src = p.file ? videoUrl(p) : '/media/video/full/' + p.id + '?v=' + (p.v || 0);
   } else {
@@ -1074,6 +1084,7 @@ function vwGo(d) {
   if (A && S.hasMore && i > S.order.length - 12) loadAndroidPage();        // on charge la suite en approchant de la fin
 }
 $('vwBack').onclick = closeViewer;
+$('vwPlay').onclick = () => { const p = vwP(); if (p && A && A.playVideo) A.playVideo(p.id); };
 $('vwEdit').onclick = () => { const p = vwP(); if (!p) return; V.fromViewer = true; vwStopVideo(); $('viewer').hidden = true; openEditor([p]); };
 $('vwShare').onclick = () => { const p = vwP(); if (A && A.share && p) A.share(p.id); else toast("Le partage se fait dans l'appli Android"); };
 $('vwInfo').onclick = () => {

@@ -35,6 +35,12 @@
             </intent-filter>
         </activity>
 
+        <!-- lecteur vidéo plein écran -->
+        <activity
+            android:name=".PlayerActivity"
+            android:configChanges="orientation|screenSize|screenLayout|smallestScreenSize|keyboardHidden|uiMode|density"
+            android:exported="false" />
+
         <!-- retouche des vidéos en arrière-plan -->
         <service
             android:name=".VideoService"
